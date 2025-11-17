@@ -125,9 +125,13 @@ export default function NewQCTestPage() {
 
       setSuccess(true);
 
-      // Redirect to the QC test list after a short delay
+      // Redirect back to batch page if batch was specified, otherwise go to QC list
       setTimeout(() => {
-        router.push('/qc');
+        if (batchIdFromQuery) {
+          router.push(`/batches/${batchIdFromQuery}`);
+        } else {
+          router.push('/qc');
+        }
       }, 1500);
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');

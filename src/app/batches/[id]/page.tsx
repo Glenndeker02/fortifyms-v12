@@ -163,6 +163,16 @@ export default function BatchDetailPage() {
     );
   };
 
+  const canPerformQC = () => {
+    if (!session) return false;
+    return (
+      session.user.role === 'MILL_OPERATOR' ||
+      session.user.role === 'MILL_MANAGER' ||
+      session.user.role === 'FWGA_INSPECTOR' ||
+      session.user.role === 'SYSTEM_ADMIN'
+    );
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -216,6 +226,14 @@ export default function BatchDetailPage() {
             <Badge variant={getStatusColor(batch.status)} className="text-sm">
               {batch.status.replace('_', ' ')}
             </Badge>
+            {canPerformQC() && batch.status !== 'QC_APPROVED' && (
+              <Button variant="default" size="sm" asChild>
+                <Link href={`/qc/new?batchId=${batch.id}`}>
+                  <FlaskConical className="mr-2 h-4 w-4" />
+                  Record QC Test
+                </Link>
+              </Button>
+            )}
             {canEditBatch() && (
               <>
                 <Button variant="outline" size="sm">
