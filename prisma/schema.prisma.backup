@@ -1,0 +1,1195 @@
+/ This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User Roles and Authentication
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String?
+  password          String?
+  role              UserRole @default(MILL_OPERATOR)
+  isActive          Boolean  @default(true)
+  emailVerified     DateTime?
+  millId            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  profile           UserProfile?
+  mill              Mill?    @relation(fields: [m[m[m[m[m[millId], references: [id])
+  buyerProfile      BuyerProfile?
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  trainingProgress  TrainingProgress[]
+  diagnosticResults DiagnosticResult[]
+  maintenanceTasks  MaintenanceTask[]
+  batchLogs         BatchLog[]
+  qcTests           QCTest[]
+  auditsAudited     ComplianceAudit[] @relation("AuditAuditor")
+  auditsSubmitted   ComplianceAudit[] @relation("AuditSubmitter")
+  auditsReviewed    ComplianceAudit[] @relation("AuditReviewer")
+  annotations       ComplianceAnnotation[]
+  
+  @@map("users")
+}
+
+model UserProfile {
+  id            String @id @default(cuid())
+  userId        String @unique
+  phone         String?
+  address       String?
+  department    String?
+  position      String?
+  employeeId    String?
+  avatar        String?
+  timezone      String @default("UTC")
+  language      String @default("en")
+  
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_profiles")
+}
+
+enum UserRole {
+  MILL_OPERATOR
+  MILL_MANAGER
+  FWGA_INSPECTOR
+  FWGA_PROGRAM_MANAGER
+  INSTITUTIONAL_BUYER
+  LOGISTICS_PLANNER
+  SYSTEM_ADMIN
+}
+
+// Mill Management
+model Mill {
+  id                String   @id @default(cuid())
+  name              String
+  code              String   @unique
+  registrationNumber String?
+  country           String
+  region            String?
+  address           String?
+  phone             String?
+  email             String?
+  isActive          Boolean  @default(true)
+  certificationStatus String @default("PENDING")
+  certificationDate DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  users             User[]
+  equipment         Equipment[]
+  batches           BatchLog[]
+  complianceAudits  ComplianceAudit[]
+  maintenanceTasks  MaintenanceTask[]
+  maintenanceSchedules MaintenanceSchedule[]
+  maintenanceAlerts MaintenanceAlert[]
+  maintenanceWindows MaintenanceWindow[]
+  procurementBids   ProcurementBid[]
+  
+  @@map("mills")
+}
+
+// Training & Diagnostics
+model TrainingCourse {
+  id                String   @id @default(cuid())
+  title             String
+  description       String?
+  category          String
+  difficulty        String
+  duration          Int      // in minutes
+  language          String   @default("en")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  modules           TrainingModule[]
+  progress          TrainingProgress[]
+  
+  @@map("training_courses")
+}
+
+model TrainingModule {
+  id                String   @id @default(cuid())
+  courseId          String
+  title             String
+  content           String?
+  videoUrl          String?
+  order             Int
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  course            TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quizzes           Quiz[]
+  
+  @@map("training_modules")
+}
+
+model Quiz {
+  id                String   @id @default(cuid())
+  moduleId          String
+  question          String
+  type              String   // MULTIPLE_CHOICE, TRUE_FALSE, TEXT
+  options           String?  // JSON string for multiple choice
+  correctAnswer     String
+  points            Int      @default(1)
+  order             Int
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  module            TrainingModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
+  @@map("quizzes")
+}
+
+model TrainingProgress {
+  id                String   @id @default(cuid())
+  userId            String
+  courseId          String
+  status            String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  progress          Float    @default(0) // percentage
+  score             Float?
+  certificateId     String?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course            TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, courseId])
+  @@map("training_progress")
+}
+
+model DiagnosticResult {
+  id                String   @id @default(cuid())
+  userId            String
+  millId            String?
+  category          String
+  subcategory       String?
+  questionnaireId   String?
+  responses         String   // JSON string
+  result            String
+  recommendations   String?  // JSON string
+  severity          String?
+  status            String   @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, ABANDONED
+  progress          Float    @default(0) // percentage
+  currentStep       Int      @default(0)
+  totalSteps        Int?
+  flaggedIssues     String?  // JSON string
+  completionActions String?  // JSON string
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionnaire     DiagnosticQuestionnaire? @relation(fields: [questionnaireId], references: [id])
+  
+  @@map("diagnostic_results")
+}
+
+model DiagnosticQuestionnaire {
+  id                String   @id @default(cuid())
+  title             String
+  category          String
+  subcategory       String?
+  description       String?
+  questions         String   // JSON string of question definitions
+  branchingLogic    String?  // JSON string for conditional logic
+  problemMapping    String?  // JSON string for response to problem mapping
+  isActive          Boolean  @default(true)
+  version           String   @default("1.0")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  diagnosticResults DiagnosticResult[]
+  
+  @@map("diagnostic_questionnaires")
+}
+
+model TrainingCertificate {
+  id                String   @id @default(cuid())
+  userId            String
+  courseId          String
+  certificateId     String   @unique
+  score             Float
+  issuedAt          DateTime @default(now())
+  expiresAt         DateTime?
+  certificateUrl    String?
+  verificationCode  String   @unique
+  createdAt         DateTime @default(now())
+
+  @@map("training_certificates")
+}
+
+model TrainingAlert {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String   // DIAGNOSTIC_BASED, COMPLIANCE_BASED, PERFORMANCE_BASED, TIME_BASED, ROLE_BASED
+  triggerCondition  String
+  title             String
+  message           String
+  recommendedAction String?
+  priority          String   @default("MEDIUM")
+  status            String   @default("ACTIVE") // ACTIVE, COMPLETED, DISMISSED, SNOOZED
+  scheduledFor      DateTime?
+  expiresAt         DateTime?
+  metadata          String?  // JSON string
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("training_alerts")
+}
+
+model InteractiveSimulation {
+  id                String   @id @default(cuid())
+  title             String
+  type              String   // DOSER_CALIBRATION, PREMIX_CALCULATOR, PROCESS_ADJUSTMENT
+  description       String?
+  config            String   // JSON string of simulation configuration
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("interactive_simulations")
+}
+
+model GuidedWalkthrough {
+  id                String   @id @default(cuid())
+  title             String
+  category          String
+  steps             String   // JSON string of walkthrough steps
+  overlayConfig     String?  // JSON string for overlay configuration
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("guided_walkthroughs")
+}
+
+// Compliance & Audit
+model ComplianceTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  version           String
+  commodity         String
+  country           String?
+  region            String?
+  standardReference String?
+  certificationType String   @default("INITIAL") // INITIAL, RENEWAL, SPOT_CHECK
+  sections          String   // JSON string of sections with items
+  scoringRules      String   // JSON string of scoring configuration
+  isActive          Boolean  @default(true)
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  audits            ComplianceAudit[]
+  
+  @@map("compliance_templates")
+}
+
+model ComplianceAudit {
+  id                String   @id @default(cuid())
+  millId            String
+  templateId        String
+  auditorId         String?
+  auditDate         DateTime
+  auditType         String   @default("SELF_AUDIT") // SELF_AUDIT, INSPECTOR_AUDIT, SPOT_CHECK
+  status            String   @default("IN_PROGRESS") // IN_PROGRESS, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, REVISION_REQUESTED
+  score             Float?
+  sectionScores     String?  // JSON string of section-wise scores
+  responses         String   // JSON string of all responses
+  evidence          String?  // JSON string for file references
+  notes             String?
+  flaggedIssues     String?  // JSON string of red-flagged items
+  correctiveActions String?  // JSON string of required actions
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedBy        String?
+  reviewComments    String?
+  approvalStatus    String?  // APPROVED, APPROVED_WITH_CONDITIONS, REJECTED
+  certificateIssued Boolean  @default(false)
+  certificateUrl    String?
+  batchPeriod       String?  // Production period being audited
+  submittedBy       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mill              Mill     @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+  template          ComplianceTemplate @relation(fields: [templateId], references: [id])
+  auditor           User?    @relation("AuditAuditor", fields: [auditorId], references: [id])
+  submitter         User?    @relation("AuditSubmitter", fields: [submittedBy], references: [id])
+  reviewer          User?    @relation("AuditReviewer", fields: [reviewedBy], references: [id])
+  annotations       ComplianceAnnotation[]
+  
+  @@map("compliance_audits")
+}
+
+model ComplianceAnnotation {
+  id                String   @id @default(cuid())
+  auditId           String
+  itemId            String   // Reference to specific checklist item
+  annotatorId       String
+  type              String   // HIGHLIGHT, TEXT_CALLOUT, ARROW, CIRCLE
+  position          String   // JSON string with x,y coordinates
+  content           String?  // Text content for callouts
+  metadata          String?  // JSON string for additional data
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  audit             ComplianceAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  annotator         User     @relation(fields: [annotatorId], references: [id])
+  
+  @@map("compliance_annotations")
+}
+
+model ComplianceSuggestion {
+  id                String   @id @default(cuid())
+  templateId        String?
+  condition         String   // JSON string of trigger condition
+  suggestion        String
+  priority          String   // CRITICAL, HIGH, MEDIUM, LOW
+  category          String   // QUICK_WIN, TRAINING, EQUIPMENT, PROCESS
+  estimatedEffort   String?  // LOW, MEDIUM, HIGH
+  estimatedImpact   String?  // LOW, MEDIUM, HIGH
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("compliance_suggestions")
+}
+
+model ComplianceReport {
+  id                String   @id @default(cuid())
+  auditId           String   @unique
+  reportType        String   // INTERNAL, REGULATORY, CUSTOM
+  format            String   // PDF, EXCEL, CSV, JSON
+  content           String   // JSON string of report content
+  filePath          String?
+  fileName          String?
+  fileSize          Int?
+  generatedBy       String
+  generatedAt       DateTime @default(now())
+  downloadedAt      DateTime?
+  downloadCount     Int      @default(0)
+
+  @@map("compliance_reports")
+}
+
+// Production & QC
+model BatchLog {
+  id                String   @id @default(cuid())
+  millId            String
+  operatorId        String
+  batchId           String   @unique
+  productionLine    String
+  shift             String?  // Morning, Afternoon, Night
+  batchDateTime     DateTime @default(now())
+  
+  // Crop & Product Information
+  cropType          String   // Parboiled rice, Raw rice, Whole grain maize, Refined maize flour, Wheat flour
+  productType       String
+  grade             String?  // e.g., "Long grain white rice", "Yellow maize"
+  rawMaterialLot    String?
+  rawMaterialSource String?  // Supplier name or farm
+  
+  // Production Volume
+  inputWeight       Float    // Raw material entering process (kg)
+  expectedOutputWeight Float? // Based on typical yield
+  outputWeight      Float?   // Filled after production (kg)
+  yieldPercentage   Float?   // Auto-calculated
+  
+  // Fortification Parameters
+  premixType        String?  // From approved premix list
+  premixBatchNumber String?  // From premix packaging
+  premixManufacturer String?
+  premixExpiryDate  DateTime?
+  targetFortification String? // JSON string of nutrient levels
+  dosingRate        Float?   // % or grams per kg of base material
+  expectedPremix    Float?   // Auto-calculated
+  actualPremixUsed  Float?   // Operator weighs and enters
+  variance          Float?   // (Actual - Expected) / Expected × 100%
+  varianceExplanation String? // Spillage, Doser malfunction, Measurement error, Other
+  
+  // Equipment Settings
+  doserId           String?  // Which doser was used
+  doserSettings     String?  // JSON: feed rate, calibration date, calibration offset
+  mixerId           String?  // Which mixer was used
+  mixingTime        Float?   // Duration of mixing (minutes)
+  mixerSpeed        Float?   // RPM or setting number
+  
+  // Process Parameters (for parboiled rice and other processes)
+  processParameters String?  // JSON: soaking time, temperature, pressure, etc.
+  
+  // Storage Information
+  storageLocation   String?  // Warehouse A, Silo 1, etc.
+  packagingDate     DateTime?
+  packagingType     String?  // 1kg bags, 5kg bags, 25kg bags, bulk
+  numberOfUnits     Int?     // Total bags/packages produced
+  
+  // QC and Status
+  status            String   @default("IN_PROGRESS") // IN_PROGRESS, QC_PENDING, PASSED, FAILED, QUARANTINED, RELEASED
+  qcStatus          String?  // PASS, PASS_WITH_NOTES, CONDITIONAL_PASS, FAIL, EXCELLENT
+  quarantineReason  String?
+  releaseDate       DateTime?
+  releasedBy        String?
+  
+  // Traceability
+  qrCodeUrl         String?  // URL to digital batch certificate
+  qrCodeGenerated   Boolean  @default(false)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mill              Mill     @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+  operator          User     @relation(fields: [operatorId], references: [id])
+  qcSamples         QCSample[]
+  qcTests           QCTest[]
+  correctiveActions CorrectiveAction[]
+  traceabilityRecords TraceabilityRecord[]
+  
+  @@map("batch_logs")
+}
+
+model QCSample {
+  id                String   @id @default(cuid())
+  batchId           String
+  sampleId          String?  // Auto-generated or manual
+  collectionPoint   String   // Start, Middle, End, Random
+  collectionTime    DateTime @default(now())
+  sampledBy         String
+  sampleQuantity    Float    // Weight of sample taken
+  visualInspection  String?  // JSON: color, odor, texture, foreign matter
+  photoUrls         String?  // JSON array of photo URLs
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  batch             BatchLog @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  tests             QCTest[]
+  
+  @@map("qc_samples")
+}
+
+model QCTest {
+  id                String   @id @default(cuid())
+  batchId           String
+  sampleId          String?  // Link to QCSample
+  testerId          String
+  testType          String   // Iron Content, Vitamin A, Vitamin B1, etc.
+  testMethod        String?  // Spectrophotometry, Titration, Lab analysis, etc.
+  testLocation      String?  // On-site lab, External lab
+  testDate          DateTime @default(now())
+  result            Float?
+  unit              String?  // ppm, mg/kg, IU/kg, %
+  target            Float?
+  tolerance         Float?
+  deviation         Float?   // Calculated deviation from target
+  status            String   // PASS, MARGINAL, FAIL
+  labCertificate    String?
+  labReportUrl      String?  // PDF or image of test certificate
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  batch             BatchLog @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sample            QCSample? @relation(fields: [sampleId], references: [id])
+  tester            User     @relation(fields: [testerId], references: [id])
+  
+  @@map("qc_tests")
+}
+
+model CorrectiveAction {
+  id                String   @id @default(cuid())
+  batchId           String
+  assignedBy        String
+  assignedTo        String
+  actionType        String   // ROOT_CAUSE_ANALYSIS, CORRECTIVE_ACTION, PREVENTIVE_ACTION
+  title             String
+  description       String
+  suspectedCause    String?  // Doser calibration drift, Premix quality issue, etc.
+  evidence          String?  // Description of investigation
+  verification      String?  // Checks performed
+  actions           String?  // JSON array of specific actions
+  responsiblePerson String?
+  dueDate           DateTime?
+  status            String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  completedAt       DateTime?
+  completedBy       String?
+  batchDisposition  String?  // Rework, Downgrade, Reject, Hold for Further Testing
+  dispositionReason  String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  preventiveActions String?  // JSON array of preventive measures
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  batch             BatchLog @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  
+  @@map("corrective_actions")
+}
+
+model TraceabilityRecord {
+  id                String   @id @default(cuid())
+  batchId           String
+  lotId             String?  // For lot aggregation
+  eventType         String   // PRODUCTION, QC_RELEASE, TRANSFER, DELIVERY, SCAN
+  eventLocation     String?  // GPS coordinates or location name
+  eventTime         DateTime @default(now())
+  userId            String?  // User who performed the action
+  buyerId           String?  // For delivery events
+  description       String?
+  metadata          String?  // JSON: additional event data
+  qrCodeData        String?  // Encoded QR code data
+  verificationStatus String? // VERIFIED, SUSPICIOUS, NOT_FOUND
+  deviceInfo        String?  // Device information for scans
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  batch             BatchLog @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  
+  @@map("traceability_records")
+}
+
+// Maintenance
+model Equipment {
+  id                String   @id @default(cuid())
+  millId            String
+  name              String
+  type              String
+  manufacturer      String?
+  model             String?
+  serialNumber      String?
+  installationDate  DateTime?
+  location          String?
+  isActive          Boolean  @default(true)
+  lastCalibration   DateTime?
+  nextCalibrationDue DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mill              Mill     @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+  maintenanceTasks  MaintenanceTask[]
+  maintenanceSchedules MaintenanceSchedule[]
+  maintenanceAlerts MaintenanceAlert[]
+  periodicChecks    PeriodicCheck[]
+  
+  @@map("equipment")
+}
+
+model MaintenanceSchedule {
+  id                String   @id @default(cuid())
+  equipmentId       String
+  millId            String
+  type              String   // CALIBRATION, CLEANING, LUBRICATION, INSPECTION, REPLACEMENT
+  frequency         String   // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY
+  frequencyDays     Int?     // Number of days for custom frequency
+  duration          Int?     // Estimated duration in minutes
+  lastPerformed     DateTime?
+  nextDue           DateTime
+  assignedTo        String?
+  priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  isActive          Boolean  @default(true)
+  materials         String?  // JSON string of required materials
+  instructions      String?  // JSON string of step-by-step instructions
+  toleranceRange    String?  // JSON string for calibration tolerances
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  mill              Mill?     @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+  tasks             MaintenanceTask[]
+  
+  @@map("maintenance_schedules")
+}
+
+model MaintenanceTask {
+  id                String   @id @default(cuid())
+  equipmentId       String
+  millId            String
+  scheduleId        String?
+  assignedTo        String
+  createdBy         String?
+  alertId           String?  // Link to alert if created from alert
+  type              String   // CALIBRATION, CLEANING, LUBRICATION, INSPECTION, REPAIR, REPLACEMENT
+  frequency         String?  // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY
+  scheduledDate     DateTime @default(now())
+  scheduledTime     DateTime @default(now())
+  startedAt         DateTime?
+  completedDate     DateTime?
+  status            String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, OVERDUE, CANCELLED
+  priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  title             String?
+  description       String?
+  estimatedDuration Int?     // in minutes
+  preChecklist      String?  // JSON string of pre-maintenance checklist
+  workLog           String?  // JSON string of work performed
+  measurements      String?  // JSON string of before/after measurements
+  partsReplaced     String?  // JSON string of parts with serial numbers
+  issues            String?  // JSON string of issues encountered
+  notes             String?
+  evidence          String?  // JSON string for file references
+  calibrationData   String?  // JSON string for calibration readings
+  result            String?  // PASS, FAIL, MARGINAL
+  approvedBy        String?
+  approvedAt        DateTime?
+  cost              Float?
+  downtime          Int?     // in minutes
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  schedule          MaintenanceSchedule? @relation(fields: [scheduleId], references: [id])
+  assignee          User     @relation(fields: [assignedTo], references: [id])
+  mill              Mill?    @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+  
+  @@map("maintenance_tasks")
+}
+
+model MaintenanceAlert {
+  id                String   @id @default(cuid())
+  equipmentId       String
+  millId            String
+  type              String   // PREDICTIVE, SCHEDULED, OVERDUE, ANOMALY, MANUAL_REPORT, PERIODIC_CHECK_FAILURE
+  severity          String   // LOW, MEDIUM, HIGH, CRITICAL
+  title             String
+  message           String
+  triggerCondition  String?  // JSON string of what triggered the alert
+  recommendedAction String?
+  sensorData        String?  // JSON string of sensor readings
+  threshold         String?  // JSON string of thresholds used
+  status            String   @default("ACTIVE") // ACTIVE, ACKNOWLEDGED, RESOLVED, DISMISSED
+  acknowledgedBy    String?
+  acknowledgedAt    DateTime?
+  resolvedBy        String?
+  resolvedAt        DateTime?
+  resolution        String?
+  taskId            String?  // Link to maintenance task if created
+  response          String?  // JSON string of user response to alert
+  metadata          String?  // JSON string for additional data
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  mill              Mill?     @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+  
+  @@map("maintenance_alerts")
+}
+
+model MaintenanceWindow {
+  id                String   @id @default(cuid())
+  millId            String
+  name              String
+  description       String?
+  startTime         String   // HH:MM format
+  endTime           String   // HH:MM format
+  daysOfWeek        String   // JSON array of days (0-6, Sunday=0)
+  isActive          Boolean  @default(true)
+  priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mill              Mill?    @relation(fields: [mm[m[[m[millId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_windows")
+}
+
+model PeriodicCheck {
+  id                String   @id @default(cuid())
+  equipmentId       String
+  checkId           String   // Reference to check template ID
+  status            String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  result            String?  // Details of check result, especially for failures
+  notes             String?
+  completedAt       DateTime?
+  completedBy       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  
+  @@unique([equipmentId, checkId])
+  @@map("periodic_checks")
+}
+
+// Institutional Procurement & Matchmaking Module
+
+model BuyerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  organizationName  String
+  organizationType  String   // SCHOOL, NGO, GOVERNMENT_AGENCY, HOSPITAL, CORPORATE_CAFETERIA, OTHER
+  registrationId    String?  // Registration/Tax ID number
+  primaryContactName String
+  primaryContactTitle String?
+  primaryContactPhone String?
+  primaryContactEmail String?
+  billingAddress    String?  // JSON string with address details
+  deliveryAddresses String?  // JSON array of delivery addresses
+  verificationStatus String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  verifiedAt        DateTime?
+  verifiedBy        String?
+  averageOrderVolume Float?  // Average order volume in kg
+  deliveryFrequency String?  // WEEKLY, MONTHLY, QUARTERLY
+  qualitySpecs      String?  // JSON string of quality specifications
+  budgetConstraints String?  // JSON string of budget information
+  preferredPaymentTerms String? // ADVANCE, ON_DELIVERY, NET_30, NET_60, ESCROW
+  currency          String   @default("USD")
+  rating            Float?   // Average rating from mills
+  totalOrders       Int      @default(0)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rfps              RFP[]
+  purchaseOrders    PurchaseOrder[]
+  reviews           BuyerReview[]
+  documents         BuyerDocument[]
+  
+  @@map("buyer_profiles")
+}
+
+model BuyerDocument {
+  id                String   @id @default(cuid())
+  buyerId           String
+  documentType      String   // REGISTRATION_CERTIFICATE, TAX_CLEARANCE, AUTHORIZATION_LETTER, OTHER
+  fileName          String
+  filePath          String
+  fileSize          Int
+  mimeType          String
+  uploadedAt        DateTime @default(now())
+  verifiedAt        DateTime?
+  verifiedBy        String?
+  status            String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  
+  // Relations
+  buyer             BuyerProfile @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  
+  @@map("buyer_documents")
+}
+
+model RFP {
+  id                String   @id @default(cuid())
+  buyerId           String
+  title             String
+  description       String?
+  referenceNumber   String   @unique
+  commodity         String   // FORTIFIED_WHOLE_GRAIN_MAIZE, FORTIFIED_REFINED_MAIZE_FLOUR, etc.
+  totalVolume       Float    // Total volume required in kg
+  unitPackaging     String   // 1KG_BAGS, 5KG_BAGS, 25KG_BAGS, 50KG_BAGS, BULK, CUSTOM
+  numberOfUnits     Int?     // Auto-calculated or manual entry
+  
+  // Quality Specifications
+  qualitySpecs      String?  // JSON string with fortification requirements, physical quality, etc.
+  certificationRequired String? // JSON array of required certifications
+  dietaryRequirements String? // JSON string for allergen/dietary requirements
+  
+  // Delivery Requirements
+  deliveryLocations String?  // JSON array of delivery locations with details
+  deliverySchedule  String?  // JSON string with start date, end date, frequency, preferred times
+  deliveryConditions String? // JSON string for unloading, storage, special handling
+  
+  // Pricing & Payment
+  maxUnitPrice      Float?   // Maximum unit price (optional)
+  totalBudget       Float?   // Total budget available
+  preferredPaymentTerms String?
+  priceInclusions   String?  // JSON string specifying what should be included in quotes
+  
+  // Additional Requirements
+  packagingLabeling String?  // JSON string for custom labeling, branding, QR codes
+  documentationRequired String? // JSON array of required documents
+  samplingRequirements String? // JSON string for sampling and verification
+  
+  // Eligibility & Selection Criteria
+  geographicRestriction String? // JSON string for location preferences
+  millCertification  String?  // JSON string for certification requirements
+  capacityRequirement Float?   // Minimum daily production capacity
+  trackRecordRequirement String? // JSON string for previous orders and ratings
+  evaluationCriteria String?  // JSON string with criteria and weighting
+  
+  // Timeline
+  openDate          DateTime @default(now())
+  bidDeadline       DateTime
+  estimatedAwardDate DateTime?
+  
+  // Status
+  status            String   @default("DRAFT") // DRAFT, OPEN, CLOSED, AWARDED, CANCELLED
+  visibility        String   @default("PUBLIC") // PUBLIC, INVITATION_ONLY
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  buyer             BuyerProfile @relation(fields: [buyerId], references: [id])
+  bids              Bid[]
+  shortlistedBids   String?  // JSON array of shortlisted bid IDs
+  awardedBidId      String?
+  purchaseOrder     PurchaseOrder?
+  
+  @@map("rfps")
+}
+
+model Bid {
+  id                String   @id @default(cuid())
+  rfpId             String
+  millId            String
+  
+  // Pricing
+  unitPrice         Float    // Price per kg or per unit
+  totalProductCost  Float    // Auto-calculated
+  deliveryCost      Float?   // Per location or total
+  additionalCosts   Float?   // Packaging, custom labeling, etc.
+  totalBidAmount    Float    // Grand total
+  priceValidity     Int      // Number of days price is guaranteed
+  paymentTerms      String?  // Payment terms offered
+  
+  // Delivery Proposal
+  deliverySchedule  String?  // JSON string with proposed delivery dates
+  leadTime          Int?     // Days from order confirmation to first delivery
+  deliveryMethod    String?  // OWN_FLEET, THIRD_PARTY, BUYER_PICKUP
+  vehicleType       String?  // Truck capacity/type
+  contingencyPlan   String?  // Backup options for delays
+  
+  // Quality Assurance
+  complianceDocs    String?  // JSON array of compliance documents
+  recentQCResults   String?  // JSON array of recent test results
+  premixSource      String?  // Premix supplier and certification
+  qualityGuarantee  String?  // Statement of quality commitment
+  sampleOffer       Boolean  @default(false) // Willing to provide sample
+  
+  // Capacity & Profile
+  productionCapacity String? // JSON string with capacity details
+  currentUtilization Float?  // % of capacity currently committed
+  availableCapacity String?  // Confirmed ability to fulfill order
+  simultaneousOrders Boolean @default(true) // Can handle alongside existing commitments
+  scaleUpCapability Boolean @default(false) // Can accommodate volume increase
+  
+  // Track Record
+  previousOrders    String?  // JSON array of similar orders
+  references        String?  // JSON string for reference contacts
+  certifications     String?  // JSON array of certifications with expiry
+  awards            String?  // JSON array of awards/recognition
+  
+  // Additional Information
+  valueAddedServices String? // JSON string for additional services
+  sustainability     String?  // Sustainability practices
+  socialImpact      String?  // Social impact programs
+  riskMitigation    String?  // Insurance, backup suppliers, etc.
+  
+  // Supporting Documents
+  supportingDocs    String?  // JSON array of document references
+  
+  // Status & Metadata
+  status            String   @default("DRAFT") // DRAFT, SUBMITTED, SHORTLISTED, NOT_SELECTED, AWARDED, WITHDRAWN
+  matchScore        Float?   // Auto-calculated fit score
+  evaluationScore   Float?   // Score based on buyer criteria
+  submittedAt       DateTime?
+  withdrawnAt       DateTime?
+  withdrawalReason  String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  rfp               RFP      @relation(fields: [rfpId], references: [id], onDelete: Cascade)
+  mill              Mill     @relation(fields: [m[m[m[m[millId], references: [id], onDelete: Cascade)
+  negotiations      Negotiation[]
+  questions         BidQuestion[]
+  
+  @@map("bids")
+}
+
+model BidQuestion {
+  id                String   @id @default(cuid())
+  bidId             String
+  questionerId      String   // Buyer who asked the question
+  question          String
+  answer            String?
+  answeredAt        DateTime?
+  answeredBy        String?  // Mill representative who answered
+  status            String   @default("PENDING") // PENDING, ANSWERED
+  createdAt         DateTime @default(now())
+
+  // Relations
+  bid               Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  
+  @@map("bid_questions")
+}
+
+model Negotiation {
+  id                String   @id @default(cuid())
+  bidId             String
+  initiatorId       String   // Who initiated this negotiation round
+  offerType         String   // COUNTER_OFFER, ACCEPT, REJECT
+  offerDetails      String   // JSON string with negotiation terms
+  response          String?
+  respondedAt       DateTime?
+  respondedBy       String?
+  status            String   @default("ACTIVE") // ACTIVE, ACCEPTED, REJECTED, EXPIRED
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  bid               Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  
+  @@map("negotiations")
+}
+
+model PurchaseOrder {
+  id                String   @id @default(cuid())
+  poNumber          String   @unique
+  rfpId             String?
+  bidId             String?
+  buyerId           String
+  millId            String
+  
+  // Order Details
+  productSpecs      String   // JSON string with product specifications
+  quantity          Float
+  unitPrice         Float
+  totalAmount       Float
+  deliverySchedule  String   // JSON string with delivery dates and locations
+  paymentTerms      String
+  qualityStandards  String   // JSON string with quality requirements
+  
+  // Status & Timeline
+  status            String   @default("DRAFT") // DRAFT, CONFIRMED, IN_PRODUCTION, READY, DELIVERED, COMPLETED, CANCELLED
+  orderDate         DateTime @default(now())
+  confirmedAt       DateTime?
+  confirmedBy       String?
+  productionStartDate DateTime?
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate DateTime?
+  
+  // Quality & Compliance
+  qualityCheckpoints String? // JSON string of QC milestones
+  batchLinkage      String?  // JSON array of linked batch IDs
+  
+  // Financial
+  paymentStatus     String   @default("PENDING") // PENDING, PAID, OVERDUE
+  paymentDueDate    DateTime?
+  actualPaymentDate DateTime?
+  
+  // Issues & Resolution
+  issues            String?  // JSON array of delivery/quality issues
+  resolutions       String?  // JSON array of issue resolutions
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  rfp               RFP?     @relation(fields: [rfpId], references: [id])
+  buyer             BuyerProfile @relation(fields: [buyerId], references: [id])
+  mill              Mill     @relation(fields: [m[m[m[m[millId], references: [id])
+  deliveries        Delivery[]
+  reviews           OrderReview[]
+  
+  @@map("purchase_orders")
+}
+
+model Delivery {
+  id                String   @id @default(cuid())
+  poId              String
+  locationId        String   // Reference to delivery location from PO
+  quantity          Float
+  scheduledDate     DateTime
+  actualDate        DateTime?
+  status            String   @default("SCHEDULED") // SCHEDULED, DISPATCHED, IN_TRANSIT, DELIVERED, FAILED
+  
+  // Tracking
+  driverId          String?
+  vehicleInfo       String?  // JSON string with vehicle details
+  trackingUrl       String?
+  estimatedArrival  DateTime?
+  
+  // Verification
+  receivedBy        String?
+  receivedQuantity  Float?
+  conditionNotes    String?
+  proofOfDelivery   String?  // JSON string with signature, photos, etc.
+  issues            String?  // JSON array of delivery issues
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  purchaseOrder     PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  
+  @@map("deliveries")
+}
+
+model OrderReview {
+  id                String   @id @default(cuid())
+  poId              String
+  reviewerId        String
+  reviewerType      String   // BUYER, MILL
+  
+  // Ratings (1-5)
+  overallRating     Float
+  productQuality    Float?
+  deliveryReliability Float?
+  communication     Float?
+  valueForMoney     Float?
+  paymentPromptness Float?  // For mill reviews of buyers
+  requirementsReasonableness Float? // For mill reviews of buyers
+  
+  // Written Review
+  review            String?
+  wouldRecommend    Boolean?
+  wouldWorkAgain    Boolean?
+  
+  createdAt         DateTime @default(now())
+
+  // Relations
+  purchaseOrder     PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  
+  @@map("order_reviews")
+}
+
+model BuyerReview {
+  id                String   @id @default(cuid())
+  buyerId           String
+  reviewerId        String  // Mill ID
+  rating            Float
+  review            String?
+  wouldAcceptAgain  Boolean?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  buyer             BuyerProfile @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  
+  @@map("buyer_reviews")
+}
+
+model MillReview {
+  id                String   @id @default(cuid())
+  millId            String
+  reviewerId        String  // Buyer ID
+  rating            Float
+  review            String?
+  wouldOrderAgain   Boolean?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  mill              Mill     @relation(fields: [m[m[m[m[millId], references: [id], onDelete: Cascade)
+  
+  @@map("mill_reviews")
+}
+
+// Legacy Procurement Models (for backward compatibility)
+// Procurement
+model ProcurementRequest {
+  id                String   @id @default(cuid())
+  buyerId           String
+  title             String
+  commodity         String
+  quantity          Float
+  unit              String
+  specifications    String?  // JSON string
+  budget            Float?
+  deadline          DateTime
+  status            String   @default("OPEN") // OPEN, CLOSED, AWARDED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  bids              ProcurementBid[]
+  
+  @@map("procurement_requests")
+}
+
+model ProcurementBid {
+  id                String   @id @default(cuid())
+  requestId         String
+  millId            String
+  unitPrice         Float
+  totalPrice        Float
+  deliveryDate      DateTime?
+  notes             String?
+  status            String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, ACCEPTED, REJECTED
+  submittedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  request           ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  mill              Mill     @relation(fields: [mm[m[m[millId], references: [id], onDelete: Cascade)
+  
+  @@map("procurement_bids")
+}
+
+// Notifications & Audit
+model Notification {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  title             String
+  message           String
+  priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  isRead            Boolean  @default(false)
+  actionUrl         String?
+  metadata          String?  // JSON string
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+model AuditLog {
+  id                String   @id @default(cuid())
+  userId            String?
+  action            String
+  resourceType      String
+  resourceId        String?
+  oldValues         String?  // JSON string
+  newValues         String?  // JSON string
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  user              User?    @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
