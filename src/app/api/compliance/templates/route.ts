@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import {
+  successResponse,
+  errorResponse,
+  handleApiError,
+  requireAuth,
+} from '@/lib/api-helpers';
 
+/**
+ * GET /api/compliance/templates
+ * List compliance templates with filtering
+ *
+ * Query parameters:
+ * - commodity: Filter by commodity type
+ * - country: Filter by country
+ * - isActive: Filter by active status (true/false)
+ *
+ * Reference: TODO.md Phase 2 - Compliance Module
+ */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { searchParams } = new URL(request.url);
     const commodity = searchParams.get('commodity');
@@ -24,92 +36,79 @@ export async function GET(request: NextRequest) {
     if (country) {
       where.country = country;
     }
-    if (isActive !== null) {
+    if (isActive !== null && isActive !== undefined) {
       where.isActive = isActive === 'true';
     }
 
     const templates = await db.complianceTemplate.findMany({
       where,
       include: {
-        audits: {
+        _count: {
           select: {
-            id: true,
-            status: true,
-            score: true,
-            auditDate: true
-          }
-        }
+            audits: true,
+          },
+        },
       },
       orderBy: [
         { commodity: 'asc' },
         { country: 'asc' },
-        { version: 'desc' }
-      ]
+        { version: 'desc' },
+      ],
     });
 
-    return NextResponse.json(templates);
+    return successResponse(templates);
   } catch (error) {
-    console.error('Error fetching compliance templates:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch templates' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
+/**
+ * POST /api/compliance/templates
+ * Create a new compliance template
+ *
+ * Only system admins can create templates
+ */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !['FWGA_INSPECTOR', 'SYSTEM_ADMIN'].includes(session.user.role)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await requireAuth();
+
+    // Only system admins can create templates
+    if (session.user.role !== 'SYSTEM_ADMIN') {
+      return errorResponse('Only system administrators can create templates', 403);
     }
 
-    const {
-      name,
-      commodity,
-      country,
-      region,
-      standardReference,
-      certificationType,
-      sections,
-      scoringRules
-    } = await request.json();
-
-    // Generate version number
-    const existingTemplates = await db.complianceTemplate.findMany({
-      where: {
-        name,
-        commodity,
-        country
-      },
-      orderBy: { version: 'desc' }
-    });
-
-    const nextVersion = existingTemplates.length > 0 
-      ? (parseFloat(existingTemplates[0].version) + 0.1).toFixed(1)
-      : '1.0';
+    const body = await request.json();
 
     const template = await db.complianceTemplate.create({
       data: {
-        name,
-        version: nextVersion,
-        commodity,
-        country,
-        region,
-        standardReference,
-        certificationType,
-        sections: JSON.stringify(sections),
-        scoringRules: JSON.stringify(scoringRules),
-        createdBy: session.user.id
-      }
+        name: body.name,
+        version: body.version,
+        commodity: body.commodity,
+        country: body.country,
+        region: body.region,
+        regulatoryStandard: body.regulatoryStandard,
+        certificationType: body.certificationType,
+        sections: body.sections || [],
+        scoringRules: body.scoringRules || {},
+        isActive: body.isActive !== undefined ? body.isActive : true,
+      },
     });
 
-    return NextResponse.json(template);
+    // Create audit log
+    await db.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'COMPLIANCE_TEMPLATE_CREATE',
+        resourceType: 'COMPLIANCE_TEMPLATE',
+        resourceId: template.id,
+        newValues: template,
+        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      },
+    });
+
+    return successResponse(template, 201);
   } catch (error) {
-    console.error('Error creating compliance template:', error);
-    return NextResponse.json(
-      { error: 'Failed to create template' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
