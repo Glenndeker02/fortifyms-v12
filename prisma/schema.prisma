@@ -666,7 +666,9 @@ model Equipment {
   installationDate  DateTime?
   location          String?
   isActive          Boolean  @default(true)
+  status            String   @default("ACTIVE") // ACTIVE, INACTIVE, NEEDS_CALIBRATION, NEEDS_REPAIR
   lastCalibration   DateTime?
+  lastCalibrationDate DateTime? // Alias for API compatibility
   nextCalibrationDue DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -676,8 +678,9 @@ model Equipment {
   maintenanceTasks  MaintenanceTask[]
   maintenanceSchedules MaintenanceSchedule[]
   maintenanceAlerts MaintenanceAlert[]
+  maintenanceEvidence MaintenanceEvidence[]
   periodicChecks    PeriodicCheck[]
-  
+
   @@map("equipment")
 }
 
@@ -688,9 +691,16 @@ model MaintenanceSchedule {
   type              String   // CALIBRATION, CLEANING, LUBRICATION, INSPECTION, REPLACEMENT
   frequency         String   // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY
   frequencyDays     Int?     // Number of days for custom frequency
+  frequencyValue    Int      @default(1) // Multiplier for frequency
   duration          Int?     // Estimated duration in minutes
+  estimatedDuration Int?     // Alias for API compatibility
+  description       String?
+  requiredMaterials String?  // JSON string of required materials
   lastPerformed     DateTime?
+  lastPerformedDate DateTime? // Alias for API compatibility
   nextDue           DateTime
+  nextDueDate       DateTime? // Alias for API compatibility
+  remindersSent     String?  // JSON array of reminder days sent
   assignedTo        String?
   priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   isActive          Boolean  @default(true)
@@ -704,7 +714,7 @@ model MaintenanceSchedule {
   equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   mill              Mill?     @relation(fields: [millId], references: [id], onDelete: Cascade)
   tasks             MaintenanceTask[]
-  
+
   @@map("maintenance_schedules")
 }
 
@@ -722,7 +732,7 @@ model MaintenanceTask {
   scheduledTime     DateTime @default(now())
   startedAt         DateTime?
   completedDate     DateTime?
-  status            String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, OVERDUE, CANCELLED
+  status            String   @default("SCHEDULED") // SCHEDULED, PENDING, IN_PROGRESS, COMPLETED, OVERDUE, CANCELLED
   priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   title             String?
   description       String?
@@ -732,8 +742,11 @@ model MaintenanceTask {
   measurements      String?  // JSON string of before/after measurements
   partsReplaced     String?  // JSON string of parts with serial numbers
   issues            String?  // JSON string of issues encountered
+  issuesFound       String?  // JSON array of issues (alias for API)
   notes             String?
   evidence          String?  // JSON string for file references
+  evidenceUrls      String?  // JSON array of evidence URLs (alias for API)
+  remindersSent     String?  // JSON array of reminder days sent
   calibrationData   String?  // JSON string for calibration readings
   result            String?  // PASS, FAIL, MARGINAL
   approvedBy        String?
@@ -748,7 +761,8 @@ model MaintenanceTask {
   schedule          MaintenanceSchedule? @relation(fields: [scheduleId], references: [id])
   assignee          User     @relation(fields: [assignedTo], references: [id])
   mill              Mill?    @relation(fields: [millId], references: [id], onDelete: Cascade)
-  
+  evidenceFiles     MaintenanceEvidence[]
+
   @@map("maintenance_tasks")
 }
 
@@ -817,9 +831,32 @@ model PeriodicCheck {
 
   // Relations
   equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  
+
   @@unique([equipmentId, checkId])
   @@map("periodic_checks")
+}
+
+model MaintenanceEvidence {
+  id                String   @id @default(cuid())
+  equipmentId       String
+  taskId            String?
+  millId            String
+  type              String   // CERTIFICATE, PHOTO, REPORT, OTHER
+  fileUrl           String
+  fileName          String
+  fileSize          Int?
+  mimeType          String?
+  description       String?
+  uploadedBy        String
+  uploadedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  task              MaintenanceTask? @relation(fields: [taskId], references: [id])
+
+  @@map("maintenance_evidence")
 }
 
 // Institutional Procurement & Matchmaking Module
