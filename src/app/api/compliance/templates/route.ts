@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
 import {
   successResponse,
@@ -6,6 +7,19 @@ import {
   handleApiError,
   requireAuth,
 } from '@/lib/api-helpers';
+
+const createTemplateSchema = z.object({
+  name: z.string().min(3, 'Name must be at least 3 characters'),
+  version: z.string().min(1, 'Version is required'),
+  commodity: z.string().min(1, 'Commodity is required'),
+  country: z.string().min(2, 'Country is required'),
+  region: z.string().optional(),
+  regulatoryStandard: z.string().min(1, 'Regulatory standard is required'),
+  certificationType: z.string().optional(),
+  sections: z.array(z.any()).default([]),
+  scoringRules: z.record(z.any()).default({}),
+  isActive: z.boolean().default(true),
+});
 
 /**
  * GET /api/compliance/templates
@@ -78,19 +92,29 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const validation = createTemplateSchema.safeParse(body);
+
+    if (!validation.success) {
+      return errorResponse(
+        `Validation error: ${validation.error.errors.map((e) => e.message).join(', ')}`,
+        400
+      );
+    }
+
+    const data = validation.data;
 
     const template = await db.complianceTemplate.create({
       data: {
-        name: body.name,
-        version: body.version,
-        commodity: body.commodity,
-        country: body.country,
-        region: body.region,
-        regulatoryStandard: body.regulatoryStandard,
-        certificationType: body.certificationType,
-        sections: body.sections || [],
-        scoringRules: body.scoringRules || {},
-        isActive: body.isActive !== undefined ? body.isActive : true,
+        name: data.name,
+        version: data.version,
+        commodity: data.commodity,
+        country: data.country,
+        region: data.region,
+        regulatoryStandard: data.regulatoryStandard,
+        certificationType: data.certificationType,
+        sections: data.sections,
+        scoringRules: data.scoringRules,
+        isActive: data.isActive,
       },
     });
 

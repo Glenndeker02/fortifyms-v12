@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
 import {
   successResponse,
@@ -9,6 +10,16 @@ import {
 } from '@/lib/api-helpers';
 import { requirePermissions } from '@/lib/permissions-middleware';
 import { Permission, Role } from '@/lib/rbac';
+
+const createCourseSchema = z.object({
+  title: z.string().min(3, 'Title must be at least 3 characters'),
+  description: z.string().optional(),
+  category: z.string().min(1, 'Category is required'),
+  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
+  duration: z.number().positive('Duration must be positive'),
+  language: z.string().default('en'),
+  isActive: z.boolean().default(true),
+});
 
 /**
  * GET /api/training/courses
@@ -122,16 +133,26 @@ export async function POST(request: NextRequest) {
     const session = await requirePermissions(Permission.TRAINING_CREATE, 'training courses');
 
     const body = await request.json();
+    const validation = createCourseSchema.safeParse(body);
+
+    if (!validation.success) {
+      return errorResponse(
+        `Validation error: ${validation.error.errors.map((e) => e.message).join(', ')}`,
+        400
+      );
+    }
+
+    const data = validation.data;
 
     const course = await db.trainingCourse.create({
       data: {
-        title: body.title,
-        description: body.description,
-        category: body.category,
-        difficulty: body.difficulty,
-        duration: body.duration,
-        language: body.language || 'en',
-        isActive: body.isActive !== undefined ? body.isActive : true,
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        difficulty: data.difficulty,
+        duration: data.duration,
+        language: data.language,
+        isActive: data.isActive,
       },
       include: {
         _count: {
