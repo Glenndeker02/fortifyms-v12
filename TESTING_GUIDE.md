@@ -129,17 +129,18 @@ Visit http://localhost:3000
 
 ### Demo User Credentials
 
-The seed script creates 7 users with the password `password123`:
+The seed script creates 8 users with the password `password123`:
 
-| Role | Email | Password |
-|------|-------|----------|
-| System Admin | admin@fortifymis.org | password123 |
-| Mill Manager | manager@mill1.com | password123 |
-| Mill Operator | operator@mill1.com | password123 |
-| FWGA Inspector | inspector@fwga.org | password123 |
-| FWGA Program Manager | pm@fwga.org | password123 |
-| Institutional Buyer | buyer@school.edu | password123 |
-| Logistics Planner | logistics@transport.com | password123 |
+| Role | Email | Password | Mill Assignment |
+|------|-------|----------|----------------|
+| System Admin | admin@fortifymis.org | password123 | All (National) |
+| Mill Manager | manager@mill1.com | password123 | Nairobi Mill |
+| Mill Technician | technician@mill1.com | password123 | Nairobi Mill |
+| Mill Operator | operator@mill1.com | password123 | Nairobi Mill |
+| FWGA Inspector | inspector@fwga.org | password123 | All Mills (FWGA) |
+| FWGA Program Manager | pm@fwga.org | password123 | All Mills (FWGA) |
+| Institutional Buyer | buyer@school.edu | password123 | None |
+| Driver/Logistics | logistics@transport.com | password123 | None |
 
 ### Test Scenarios
 
@@ -214,6 +215,264 @@ Test each role by logging in with different credentials:
 2. Click "Log out"
 3. Should sign out and redirect to `/login`
 4. Attempting to access `/dashboard` should redirect back to `/login`
+
+---
+
+## 🔐 RBAC Permission Testing
+
+### Overview
+
+The system implements a comprehensive Role-Based Access Control (RBAC) system with:
+- **8 User Roles** with hierarchical permissions
+- **50+ Fine-Grained Permissions** across all modules
+- **Multi-Tenant Data Isolation** (mills can only see their own data)
+- **Automatic Permission Enforcement** via middleware
+
+### Permission Matrix
+
+| Module | Mill Operator | Mill Technician | Mill Manager | FWGA Inspector | FWGA PM | Institutional Buyer | Driver | System Admin |
+|--------|--------------|----------------|--------------|----------------|---------|-------------------|--------|--------------|
+| **Batches** | Create, View, Edit | + Approve | + Delete | View All Mills | View All Mills | View | - | Full Access |
+| **QC Tests** | Create, View | + Edit, Approve | + Reject | View, Approve All | View All | - | - | Full Access |
+| **Compliance** | View | View | Create, Edit, Submit | View, Audit All | Approve/Reject | - | - | Full Access |
+| **Maintenance** | View, Create | + Complete | Full | View All | View All | - | - | Full Access |
+| **Training** | View, Enroll | View, Enroll | Manage Courses | View All | View All | - | - | Full Access |
+| **Equipment** | View | Edit | Full | View All | View All | - | - | Full Access |
+| **Procurement** | - | - | Create, Fulfill | View All | Approve All | Create Orders | - | Full Access |
+| **Logistics** | - | - | View, Create | View All | View All | View | Full | Full Access |
+| **Users** | - | - | Mill Users Only | View All | View All | - | - | Full Access |
+| **Analytics** | Mill Only | Mill Only | Mill Only | All Mills | National | - | Routes | Full Access |
+
+### RBAC Test Scenarios
+
+#### Scenario 1: Mill Data Isolation
+
+**Objective**: Verify mill staff can only access their own mill's data
+
+**Setup**:
+1. Create a second mill and batch via seed or admin panel
+2. Note the mill IDs
+
+**Test Steps**:
+```bash
+# Login as Mill Operator (Nairobi Mill)
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"operator@mill1.com","password":"password123"}'
+
+# Save the session token from response
+
+# Try to access batches - should only see Nairobi Mill batches
+curl http://localhost:3000/api/batches \
+  -H "Cookie: next-auth.session-token=<TOKEN>"
+
+# Try to access another mill's batch by ID - should get 403
+curl http://localhost:3000/api/batches/<OTHER_MILL_BATCH_ID> \
+  -H "Cookie: next-auth.session-token=<TOKEN>"
+```
+
+**Expected Result**:
+- ✅ GET `/api/batches` returns only Nairobi Mill batches
+- ✅ GET `/api/batches/<other-mill-id>` returns 403 Forbidden
+- ✅ Mill filter in stats APIs auto-filters to user's mill
+
+#### Scenario 2: Permission Hierarchy
+
+**Objective**: Verify permission inheritance (Technician has all Operator permissions)
+
+**Test Steps**:
+```bash
+# Login as Mill Operator
+# Try to approve a QC test - should fail
+curl -X PATCH http://localhost:3000/api/qc/<TEST_ID> \
+  -H "Cookie: next-auth.session-token=<OPERATOR_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"APPROVED"}'
+# Expected: 403 Forbidden
+
+# Login as Mill Technician
+# Try to approve same QC test - should succeed
+curl -X PATCH http://localhost:3000/api/qc/<TEST_ID> \
+  -H "Cookie: next-auth.session-token=<TECHNICIAN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"APPROVED"}'
+# Expected: 200 OK
+
+# Verify Technician can still do Operator tasks
+curl -X POST http://localhost:3000/api/batches \
+  -H "Cookie: next-auth.session-token=<TECHNICIAN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"batchId":"B-2024-002","productType":"MAIZE_FLOUR",...}'
+# Expected: 200 OK (inherited permission)
+```
+
+**Expected Result**:
+- ✅ Mill Operator CANNOT approve QC tests
+- ✅ Mill Technician CAN approve QC tests
+- ✅ Mill Technician CAN do all Operator tasks (inherited)
+
+#### Scenario 3: FWGA Cross-Mill Access
+
+**Objective**: Verify FWGA staff can access data from all mills
+
+**Test Steps**:
+```bash
+# Login as FWGA Inspector
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"inspector@fwga.org","password":"password123"}'
+
+# Access batches without mill filter - should see ALL mills
+curl http://localhost:3000/api/batches \
+  -H "Cookie: next-auth.session-token=<INSPECTOR_TOKEN>"
+
+# Access specific mill stats
+curl "http://localhost:3000/api/batches/stats?millId=<MILL_1_ID>" \
+  -H "Cookie: next-auth.session-token=<INSPECTOR_TOKEN>"
+
+curl "http://localhost:3000/api/batches/stats?millId=<MILL_2_ID>" \
+  -H "Cookie: next-auth.session-token=<INSPECTOR_TOKEN>"
+
+# Access compliance audits across all mills
+curl http://localhost:3000/api/compliance/audits \
+  -H "Cookie: next-auth.session-token=<INSPECTOR_TOKEN>"
+```
+
+**Expected Result**:
+- ✅ FWGA Inspector sees batches from ALL mills
+- ✅ Can filter by specific mill using `millId` parameter
+- ✅ Can access compliance audits across all mills
+
+#### Scenario 4: Role-Specific Permissions
+
+**Objective**: Verify role-specific permissions are enforced
+
+**Mill Manager Only:**
+```bash
+# Login as Mill Manager
+# Try to delete a batch - should succeed
+curl -X DELETE http://localhost:3000/api/batches/<BATCH_ID> \
+  -H "Cookie: next-auth.session-token=<MANAGER_TOKEN>"
+# Expected: 200 OK (soft delete - marked as CANCELLED)
+
+# Login as Mill Operator
+# Try to delete a batch - should fail
+curl -X DELETE http://localhost:3000/api/batches/<BATCH_ID> \
+  -H "Cookie: next-auth.session-token=<OPERATOR_TOKEN>"
+# Expected: 403 Forbidden
+```
+
+**FWGA Program Manager Only:**
+```bash
+# Login as FWGA PM
+# Try to approve a compliance audit - should succeed
+curl -X PATCH http://localhost:3000/api/compliance/audits/<AUDIT_ID> \
+  -H "Cookie: next-auth.session-token=<FWGA_PM_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"APPROVED","score":95}'
+# Expected: 200 OK
+
+# Login as FWGA Inspector
+# Try to approve same audit - should succeed (inspectors can also approve)
+curl -X PATCH http://localhost:3000/api/compliance/audits/<AUDIT_ID> \
+  -H "Cookie: next-auth.session-token=<INSPECTOR_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"APPROVED","score":95}'
+# Expected: 200 OK
+```
+
+**Expected Result**:
+- ✅ Only Mill Managers and System Admins can delete batches
+- ✅ Both FWGA PMs and Inspectors can approve audits
+- ✅ Permission checks prevent unauthorized actions
+
+#### Scenario 5: System Admin Full Access
+
+**Objective**: Verify System Admin has unrestricted access
+
+**Test Steps**:
+```bash
+# Login as System Admin
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@fortifymis.org","password":"password123"}'
+
+# Access all modules
+curl http://localhost:3000/api/batches -H "Cookie: next-auth.session-token=<ADMIN_TOKEN>"
+curl http://localhost:3000/api/qc -H "Cookie: next-auth.session-token=<ADMIN_TOKEN>"
+curl http://localhost:3000/api/compliance/audits -H "Cookie: next-auth.session-token=<ADMIN_TOKEN>"
+curl http://localhost:3000/api/maintenance/tasks -H "Cookie: next-auth.session-token=<ADMIN_TOKEN>"
+
+# Perform restricted operations
+curl -X DELETE http://localhost:3000/api/maintenance/tasks/<TASK_ID> \
+  -H "Cookie: next-auth.session-token=<ADMIN_TOKEN>"
+# Expected: 200 OK
+
+curl -X DELETE http://localhost:3000/api/compliance/audits/<AUDIT_ID> \
+  -H "Cookie: next-auth.session-token=<ADMIN_TOKEN>"
+# Expected: 200 OK
+```
+
+**Expected Result**:
+- ✅ System Admin can access ALL modules
+- ✅ System Admin can perform ALL operations (including hard deletes)
+- ✅ No data isolation restrictions
+
+### Database Verification Queries
+
+After testing, verify correct data in the database:
+
+```sql
+-- Check audit logs were created
+SELECT
+  al.action,
+  al."resourceType",
+  u.name as user_name,
+  u.role,
+  al."createdAt"
+FROM "AuditLog" al
+JOIN "User" u ON u.id = al."userId"
+ORDER BY al."createdAt" DESC
+LIMIT 20;
+
+-- Verify mill data isolation
+SELECT
+  b."batchId",
+  m.name as mill_name,
+  u.name as operator_name,
+  u.role,
+  b.status
+FROM "BatchLog" b
+JOIN "Mill" m ON m.id = b."millId"
+JOIN "User" u ON u.id = b."operatorId"
+ORDER BY b."createdAt" DESC;
+
+-- Check permission grants
+SELECT
+  u.email,
+  u.role,
+  m.name as assigned_mill,
+  t.name as tenant
+FROM "User" u
+LEFT JOIN "Mill" m ON m.id = u."millId"
+LEFT JOIN "Tenant" t ON t.id = u."tenantId"
+ORDER BY u.role;
+```
+
+### RBAC Testing Checklist
+
+After running all scenarios, verify:
+
+- [ ] **Data Isolation**: Mill staff can only see their mill's data
+- [ ] **Permission Enforcement**: Each role has correct permissions
+- [ ] **Permission Inheritance**: Higher roles include lower role permissions
+- [ ] **Cross-Mill Access**: FWGA staff can access all mills
+- [ ] **Restricted Operations**: Delete operations limited to admins
+- [ ] **Audit Logging**: All actions are logged with user context
+- [ ] **Error Handling**: 403 Forbidden for unauthorized actions
+- [ ] **Session Management**: Tokens expire after 24 hours
+- [ ] **Role Transitions**: Status transitions respect role permissions
+- [ ] **Multi-Tenancy**: Tenant hierarchy enforced (when applicable)
 
 ---
 

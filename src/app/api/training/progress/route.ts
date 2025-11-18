@@ -4,8 +4,9 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, Role } from '@/lib/rbac';
 
 /**
  * GET /api/training/progress
@@ -19,7 +20,8 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.TRAINING_VIEW, 'training progress');
 
     const { searchParams } = new URL(request.url);
     const userIdParam = searchParams.get('userId');
@@ -29,8 +31,8 @@ export async function GET(request: NextRequest) {
     let userId = session.user.id;
 
     if (userIdParam) {
-      // Only admins can view other users' progress
-      if (session.user.role !== 'SYSTEM_ADMIN') {
+      // Only admins and managers can view other users' progress
+      if (session.user.role !== Role.SYSTEM_ADMIN && session.user.role !== Role.MILL_MANAGER) {
         return errorResponse('You do not have permission to view other users progress', 403);
       }
       userId = userIdParam;
@@ -81,7 +83,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.TRAINING_ENROLL, 'training progress');
 
     const body = await request.json();
     const { courseId, progress: progressValue, score, status } = body;

@@ -4,9 +4,9 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
-import { isMillStaff } from '@/lib/auth';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff } from '@/lib/rbac';
 
 /**
  * GET /api/qc/stats
@@ -28,7 +28,8 @@ import { isMillStaff } from '@/lib/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.QC_TEST_VIEW, 'QC statistics');
 
     const { searchParams } = new URL(request.url);
     const millId = searchParams.get('millId');
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     // Build where clause based on role and filters
     const where: any = {};
 
-    // Role-based filtering
+    // Role-based filtering for nested batch.millId
     if (isMillStaff(session.user.role)) {
       // Mill staff can only see stats from their mill
       if (!session.user.millId) {
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
         millId: session.user.millId,
       };
     } else if (millId) {
-      // FWGA staff and admins can filter by mill
+      // FWGA staff and admins can filter by specific mill
       where.batch = {
         millId,
       };

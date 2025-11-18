@@ -1,27 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import {
+  successResponse,
+  errorResponse,
+  handleApiError,
+} from '@/lib/api-helpers';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission } from '@/lib/rbac';
 
+/**
+ * POST /api/compliance/audits/submit
+ * Submit a completed compliance audit for review
+ *
+ * Body parameters:
+ * - auditId: ID of the audit to submit
+ * - responses: Audit responses object
+ * - evidence: Evidence files/links
+ * - notes: Additional notes
+ *
+ * Returns the updated audit with calculated score
+ */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Check permission and get session
+    const session = await requirePermissions(Permission.AUDIT_SUBMIT, 'compliance audit');
 
     const { auditId, responses, evidence, notes } = await request.json();
 
-    // Verify audit exists and user has permission
-    const audit = await db.complianceAudit.findFirst({
-      where: {
-        id: auditId,
-        OR: [
-          { submittedBy: session.user.id },
-          { auditorId: session.user.id },
-          { mill: { users: { some: { id: session.user.id } } } }
-        ]
-      },
+    // Verify audit exists and user is the auditor
+    const audit = await db.complianceAudit.findUnique({
+      where: { id: auditId },
       include: {
         template: true,
         mill: true
@@ -29,10 +37,17 @@ export async function POST(request: NextRequest) {
     });
 
     if (!audit) {
-      return NextResponse.json(
-        { error: 'Audit not found or access denied' },
-        { status: 404 }
-      );
+      return errorResponse('Audit not found', 404);
+    }
+
+    // Only the auditor can submit their own audit
+    if (audit.auditorId !== session.user.id) {
+      return errorResponse('Only the auditor can submit this audit', 403);
+    }
+
+    // Audit must be in progress to be submitted
+    if (audit.status !== 'IN_PROGRESS') {
+      return errorResponse('Only audits in progress can be submitted', 400);
     }
 
     // Parse template sections and scoring rules
@@ -53,7 +68,8 @@ export async function POST(request: NextRequest) {
         sectionScores: JSON.stringify(scoringResult.sectionScores),
         flaggedIssues: JSON.stringify(scoringResult.flaggedIssues),
         correctiveActions: JSON.stringify(scoringResult.correctiveActions),
-        status: 'SUBMITTED',
+        status: 'PENDING_REVIEW',
+        submittedBy: session.user.id,
         submittedAt: new Date()
       },
       include: {
@@ -62,6 +78,20 @@ export async function POST(request: NextRequest) {
         auditor: true,
         submitter: true
       }
+    });
+
+    // Create audit log
+    await db.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'COMPLIANCE_AUDIT_SUBMIT',
+        resourceType: 'COMPLIANCE_AUDIT',
+        resourceId: auditId,
+        oldValues: audit,
+        newValues: updatedAudit,
+        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      },
     });
 
     // Create notification for FWGA inspectors
@@ -82,16 +112,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return successResponse({
       audit: updatedAudit,
       scoring: scoringResult
     });
   } catch (error) {
-    console.error('Error submitting audit:', error);
-    return NextResponse.json(
-      { error: 'Failed to submit audit' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
