@@ -3,9 +3,9 @@ import { db } from '@/lib/db';
 import {
   successResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
-import { isMillStaff } from '@/lib/auth';
+import { requirePermissions, buildPermissionWhere } from '@/lib/permissions-middleware';
+import { Permission } from '@/lib/rbac';
 
 /**
  * GET /api/batches/stats
@@ -25,31 +25,20 @@ import { isMillStaff } from '@/lib/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.BATCH_VIEW, 'batch statistics');
 
     // Get query params
     const { searchParams } = new URL(request.url);
     const millId = searchParams.get('millId');
     const period = searchParams.get('period') || 'today';
 
-    // Build where clause
-    const where: any = {};
+    // Build base where clause
+    const baseWhere: any = {};
 
-    // Role-based filtering
-    if (isMillStaff(session.user.role)) {
-      if (!session.user.millId) {
-        return successResponse({
-          total: 0,
-          pending: 0,
-          approved: 0,
-          failed: 0,
-          avgVariance: 0,
-          qcPassRate: 0,
-        });
-      }
-      where.millId = session.user.millId;
-    } else if (millId) {
-      where.millId = millId;
+    // Optional mill filter (for FWGA staff viewing specific mills)
+    if (millId) {
+      baseWhere.millId = millId;
     }
 
     // Date filtering
@@ -58,24 +47,27 @@ export async function GET(request: NextRequest) {
       case 'today':
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        where.createdAt = { gte: today };
+        baseWhere.createdAt = { gte: today };
         break;
       case 'week':
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
-        where.createdAt = { gte: weekAgo };
+        baseWhere.createdAt = { gte: weekAgo };
         break;
       case 'month':
         const monthAgo = new Date(now);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        where.createdAt = { gte: monthAgo };
+        baseWhere.createdAt = { gte: monthAgo };
         break;
       case 'year':
         const yearAgo = new Date(now);
         yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        where.createdAt = { gte: yearAgo };
+        baseWhere.createdAt = { gte: yearAgo };
         break;
     }
+
+    // Apply permission-based filtering (tenant/mill isolation)
+    const where = buildPermissionWhere(session, baseWhere);
 
     // Get batch counts by status
     const [total, pending, approved, failed, batches] = await Promise.all([

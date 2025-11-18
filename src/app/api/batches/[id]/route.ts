@@ -4,9 +4,9 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
-import { canAccessMillData, isMillStaff } from '@/lib/auth';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff, Role } from '@/lib/rbac';
 
 /**
  * GET /api/batches/[id]
@@ -17,7 +17,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.BATCH_VIEW, 'batches');
 
     const batch = await db.batchLog.findUnique({
       where: { id: params.id },
@@ -67,9 +68,11 @@ export async function GET(
       return errorResponse('Batch not found', 404);
     }
 
-    // Check access permissions
-    if (!canAccessMillData(session.user.role, session.user.millId, batch.millId)) {
-      return errorResponse('You do not have access to this batch', 403);
+    // Check mill access for mill staff (FWGA can access any mill)
+    if (isMillStaff(session.user.role)) {
+      if (session.user.millId !== batch.millId) {
+        return errorResponse('You do not have access to this batch', 403);
+      }
     }
 
     return successResponse(batch);
@@ -91,7 +94,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.BATCH_EDIT, 'batches');
 
     // Get existing batch
     const existingBatch = await db.batchLog.findUnique({
@@ -102,9 +106,11 @@ export async function PATCH(
       return errorResponse('Batch not found', 404);
     }
 
-    // Check access permissions
-    if (!canAccessMillData(session.user.role, session.user.millId, existingBatch.millId)) {
-      return errorResponse('You do not have access to this batch', 403);
+    // Check mill access for mill staff (FWGA can access any mill)
+    if (isMillStaff(session.user.role)) {
+      if (session.user.millId !== existingBatch.millId) {
+        return errorResponse('You do not have access to this batch', 403);
+      }
     }
 
     const body = await request.json();
@@ -115,9 +121,9 @@ export async function PATCH(
       updateData.notes = body.notes;
     }
 
-    // Status updates require manager approval
+    // Status updates require BATCH_APPROVE permission
     if (body.status !== undefined) {
-      if (session.user.role !== 'MILL_MANAGER' && session.user.role !== 'SYSTEM_ADMIN') {
+      if (session.user.role !== Role.MILL_MANAGER && session.user.role !== Role.SYSTEM_ADMIN) {
         return errorResponse('Only mill managers can update batch status', 403);
       }
       updateData.status = body.status;
@@ -176,10 +182,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session (only system admins have delete permission)
+    const session = await requirePermissions(Permission.BATCH_DELETE, 'batches');
 
     // Only system admins can delete batches
-    if (session.user.role !== 'SYSTEM_ADMIN') {
+    if (session.user.role !== Role.SYSTEM_ADMIN) {
       return errorResponse('Only system administrators can delete batches', 403);
     }
 
