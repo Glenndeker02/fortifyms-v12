@@ -23,12 +23,15 @@ model User {
   isActive          Boolean  @default(true)
   emailVerified     DateTime?
   millId            String?
+  tenantId          String?
+  lastLoginAt       DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   // Relations
   profile           UserProfile?
   mill              Mill?    @relation(fields: [millId], references: [id])
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
   buyerProfile      BuyerProfile?
   auditLogs         AuditLog[]
   trainingProgress  TrainingProgress[]
@@ -72,12 +75,44 @@ model UserProfile {
 
 enum UserRole {
   MILL_OPERATOR
+  MILL_TECHNICIAN
   MILL_MANAGER
   FWGA_INSPECTOR
   FWGA_PROGRAM_MANAGER
   INSTITUTIONAL_BUYER
-  LOGISTICS_PLANNER
+  DRIVER_LOGISTICS
   SYSTEM_ADMIN
+}
+
+// Multi-Tenancy
+model Tenant {
+  id        String      @id @default(cuid())
+  name      String
+  type      TenantType
+  parentId  String?
+  settings  Json        @default("{}")
+  features  Json        @default("{}")
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relations
+  parent    Tenant?     @relation("TenantHierarchy", fields: [parentId], references: [id])
+  children  Tenant[]    @relation("TenantHierarchy")
+  users     User[]
+  mills     Mill[]
+  actionItems ActionItem[]
+  alerts    Alert[]
+  auditLogs AuditLog[]
+
+  @@map("tenants")
+}
+
+enum TenantType {
+  NATIONAL
+  REGIONAL
+  INSTITUTIONAL
+  MILL
 }
 
 // Mill Management
@@ -91,6 +126,9 @@ model Mill {
   address           String?
   phone             String?
   email             String?
+  latitude          Float?
+  longitude         Float?
+  tenantId          String?
   isActive          Boolean  @default(true)
   certificationStatus String @default("PENDING")
   certificationDate DateTime?
@@ -98,6 +136,7 @@ model Mill {
   updatedAt         DateTime @updatedAt
 
   // Relations
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
   users             User[]
   equipment         Equipment[]
   batches           BatchLog[]
@@ -1244,6 +1283,7 @@ model Alert {
   sourceType        String   // QC_TEST, BATCH_LOG, COMPLIANCE_AUDIT, MAINTENANCE, etc.
   sourceId          String?  // ID of the source record
   millId            String?
+  tenantId          String?
   status            AlertStatus @default(ACTIVE)
   isAcknowledged    Boolean  @default(false)
   acknowledgedAt    DateTime?
@@ -1259,6 +1299,7 @@ model Alert {
 
   // Relations
   mill              Mill?    @relation(fields: [millId], references: [id])
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
   acknowledger      User?    @relation("AlertAcknowledger", fields: [acknowledgedBy], references: [id])
   resolver          User?    @relation("AlertResolver", fields: [resolvedBy], references: [id])
   actionItems       ActionItem[]
@@ -1520,6 +1561,7 @@ model ActionItem {
   relatedOrderId    String?
   relatedComplianceId String?
   millId            String
+  tenantId          String?
   createdBy         String
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1538,9 +1580,10 @@ model ActionItem {
   // Relations
   alert             Alert    @relation(fields: [alertId], references: [id])
   mill              Mill     @relation(fields: [millId], references: [id])
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
   notes             ActionItemNote[]
   evidence          ActionItemEvidence[]
-  
+
   @@map("action_items")
 }
 
@@ -1614,6 +1657,7 @@ enum ActionItemStatus {
 model AuditLog {
   id                String   @id @default(cuid())
   userId            String?
+  tenantId          String?
   action            String
   resourceType      String
   resourceId        String?
@@ -1625,6 +1669,30 @@ model AuditLog {
 
   // Relations
   user              User?    @relation(fields: [userId], references: [id])
-  
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
+
   @@map("audit_logs")
+}
+
+// Error Logging
+model ErrorLog {
+  id                String   @id @default(cuid())
+  level             String   // DEBUG, INFO, WARNING, ERROR, CRITICAL
+  category          String   // VALIDATION, AUTHENTICATION, DATABASE, etc.
+  message           String
+  stack             String?
+  userId            String?
+  sessionId         String?
+  requestId         String?
+  endpoint          String?
+  method            String?
+  statusCode        Int?
+  userAgent         String?
+  ipAddress         String?
+  metadata          Json?
+  timestamp         DateTime @default(now())
+
+  @@map("error_logs")
+  @@index([level, timestamp])
+  @@index([category, timestamp])
 }
