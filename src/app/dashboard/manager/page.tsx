@@ -1,200 +1,224 @@
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  BarChart3,
-  Users,
-  Factory,
   TrendingUp,
-  AlertTriangle,
-  CheckCircle2,
+  TrendingDown,
+  AlertCircle,
   Package,
-  FlaskConical,
+  CheckCircle2,
+  DollarSign,
+  ShoppingCart,
 } from 'lucide-react';
-import Link from 'next/link';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+
+interface ManagerAnalytics {
+  kpiCards: {
+    productionVolume: { value: number; change: number; unit: string };
+    qcPassRate: { value: number; unit: string };
+    complianceScore: { value: number; status: string };
+    activeOrders: { value: number };
+    revenue: { value: number; unit: string };
+  };
+  alerts: {
+    high: Array<{ type: string; count: number; message: string }>;
+    medium: Array<{ type: string; count: number; message: string }>;
+    actions: Array<{ type: string; count: number; message: string }>;
+  };
+  production: {
+    dailyChart: Array<{ date: Date; quantity: number }>;
+    recentBatches: Array<{
+      id: string;
+      batchNumber: string;
+      quantityProduced: number;
+      status: string;
+    }>;
+  };
+  compliance: {
+    trend: Array<{ auditDate: string; score: number }>;
+  };
+}
 
 export default function ManagerDashboard() {
-  // TODO: Fetch real data from API
-  const stats = {
-    totalBatches: 45,
-    qcPassRate: 94.5,
-    complianceScore: 88,
-    activeStaff: 12,
-  };
+  const router = useRouter();
+  const [analytics, setAnalytics] = useState<ManagerAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/analytics/mill-manager')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setAnalytics(data.data);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <Skeleton className="h-12 w-64" />
+        <div className="grid gap-4 md:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!analytics) return null;
 
   return (
-    <MainLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mill Manager Dashboard</h1>
-          <p className="text-muted-foreground">
-            Complete overview of mill operations and performance
-          </p>
-        </div>
-
-        {/* KPIs */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Batches (Week)</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalBatches}</div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-green-600">+12%</span> from last week
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">QC Pass Rate</CardTitle>
-              <FlaskConical className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.qcPassRate}%</div>
-              <p className="text-xs text-muted-foreground">Target: 95%</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Compliance Score</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.complianceScore}%</div>
-              <Badge variant="default">Excellent</Badge>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Staff</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.activeStaff}</div>
-              <p className="text-xs text-muted-foreground">2 on leave</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="production">Production</TabsTrigger>
-            <TabsTrigger value="quality">Quality</TabsTrigger>
-            <TabsTrigger value="staff">Staff</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Alerts</CardTitle>
-                  <CardDescription>Critical issues requiring attention</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-destructive" />
-                      <div>
-                        <p className="text-sm font-medium">Premix stock low</p>
-                        <p className="text-sm text-muted-foreground">
-                          Rice premix below reorder point
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                      <div>
-                        <p className="text-sm font-medium">Calibration due</p>
-                        <p className="text-sm text-muted-foreground">
-                          Doser Unit 2 due for calibration
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <Button asChild className="w-full mt-4" variant="outline">
-                    <Link href="/alerts">View All Alerts</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Manager functions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-2">
-                    <Button asChild variant="outline">
-                      <Link href="/compliance/new">Submit Compliance Audit</Link>
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/procurement">Review Procurement Opportunities</Link>
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/analytics">View Detailed Analytics</Link>
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/users">Manage Staff</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="production">
-            <Card>
-              <CardHeader>
-                <CardTitle>Production Analytics</CardTitle>
-                <CardDescription>Coming soon</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Production charts and analytics will be displayed here.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="quality">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quality Control Analytics</CardTitle>
-                <CardDescription>Coming soon</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  QC trends and analysis will be displayed here.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="staff">
-            <Card>
-              <CardHeader>
-                <CardTitle>Staff Performance</CardTitle>
-                <CardDescription>Coming soon</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Staff metrics and training progress will be displayed here.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+    <div className="container mx-auto p-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Mill Manager Dashboard</h1>
+        <p className="text-muted-foreground">Complete overview of operations</p>
       </div>
-    </MainLayout>
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Production</CardTitle>
+            <Package className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.kpiCards.productionVolume.value}</div>
+            <p className="text-xs flex items-center gap-1">
+              {analytics.kpiCards.productionVolume.change > 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              )}
+              {Math.abs(analytics.kpiCards.productionVolume.change)}%
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">QC Pass Rate</CardTitle>
+            <CheckCircle2 className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.kpiCards.qcPassRate.value}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Compliance</CardTitle>
+            <CheckCircle2 className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.kpiCards.complianceScore.value}</div>
+            <Badge>{analytics.kpiCards.complianceScore.status}</Badge>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
+            <ShoppingCart className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.kpiCards.activeOrders.value}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+            <DollarSign className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${analytics.kpiCards.revenue.value}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Alerts */}
+      {(analytics.alerts.high.length > 0 || analytics.alerts.medium.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Alerts & Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {analytics.alerts.high.map((alert, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 bg-red-50 rounded">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm">{alert.message}</span>
+                  <Badge className="ml-auto">{alert.count}</Badge>
+                </div>
+              ))}
+              {analytics.alerts.medium.map((alert, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 bg-yellow-50 rounded">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm">{alert.message}</span>
+                  <Badge className="ml-auto">{alert.count}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Production Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Production (Last 30 Days)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={analytics.production.dailyChart}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="quantity" fill="#8884d8" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Compliance Trend */}
+      {analytics.compliance.trend.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Compliance Score Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={analytics.compliance.trend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="auditDate" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="score" stroke="#82ca9d" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
