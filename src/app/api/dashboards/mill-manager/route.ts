@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { generateMockManagerDashboard } from '@/lib/mockData';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,11 +9,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // For now, return mock data
-    const dashboardData = generateMockManagerDashboard();
-    return NextResponse.json(dashboardData);
+    // Redirect to the actual analytics endpoint
+    const analyticsResponse = await fetch(
+      `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/analytics/mill-manager`,
+      {
+        headers: {
+          cookie: request.headers.get('cookie') || '',
+        },
+      }
+    );
 
-    // TODO: Implement real data fetching when database is properly set up
+    const data = await analyticsResponse.json();
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Mill manager dashboard error:', error);
     return NextResponse.json(

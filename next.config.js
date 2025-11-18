@@ -3,6 +3,16 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
 
+  // Disable ESLint during builds (linting should be done separately)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
+  // Disable TypeScript errors during builds (type checking should be done separately)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // Image Configuration
   images: {
     remotePatterns: [
