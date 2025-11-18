@@ -4,8 +4,9 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff } from '@/lib/rbac';
 
 /**
  * POST /api/reports
@@ -18,11 +19,14 @@ import {
  * - TRAINING_PROGRESS: Training completion report
  * - MAINTENANCE_LOG: Maintenance activities log
  *
+ * Requires: Permission.REPORT_GENERATE
  * Reference: newprd.md Section 3.7.3 - Report Generation
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.REPORT_GENERATE, 'reports');
+
     const body = await request.json();
 
     const { reportType, dateRange, millId, format = 'JSON' } = body;
@@ -43,13 +47,14 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Role-based filtering
-    if (session.user.role === 'MILL_MANAGER' || session.user.role === 'MILL_OPERATOR') {
+    // Role-based filtering - mill staff can only see their mill's data
+    if (isMillStaff(session.user.role)) {
       if (!session.user.millId) {
         return errorResponse('User is not assigned to a mill', 403);
       }
       whereClause.millId = session.user.millId;
     } else if (millId) {
+      // FWGA staff and admins can filter by specific mill
       whereClause.millId = millId;
     }
 

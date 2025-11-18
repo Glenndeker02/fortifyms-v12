@@ -4,21 +4,25 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
-import { isMillStaff } from '@/lib/auth';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff } from '@/lib/rbac';
 
 /**
  * GET /api/analytics/mill-operator
  * Analytics data for mill operator/technician dashboard
+ *
+ * Requires: Permission.ANALYTICS_MILL
+ * Roles: MILL_OPERATOR, MILL_TECHNICIAN, MILL_MANAGER, SYSTEM_ADMIN
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.ANALYTICS_MILL, 'mill analytics');
 
-    // Only mill operators and technicians can access this
+    // Only mill staff can access this
     if (!isMillStaff(session.user.role)) {
-      return errorResponse('Access denied', 403);
+      return errorResponse('Only mill staff can access mill analytics', 403);
     }
 
     if (!session.user.millId) {

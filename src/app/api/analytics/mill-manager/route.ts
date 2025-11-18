@@ -4,27 +4,32 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, Role } from '@/lib/rbac';
 
 /**
  * GET /api/analytics/mill-manager
  * Analytics data for mill manager dashboard
+ *
+ * Requires: Permission.ANALYTICS_MILL
+ * Roles: MILL_MANAGER, SYSTEM_ADMIN
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.ANALYTICS_MILL, 'mill analytics');
 
-    // Only mill managers and admins can access this
+    // Only mill managers and admins can access this endpoint
     if (
-      session.user.role !== 'MILL_MANAGER' &&
-      session.user.role !== 'SYSTEM_ADMIN'
+      session.user.role !== Role.MILL_MANAGER &&
+      session.user.role !== Role.SYSTEM_ADMIN
     ) {
-      return errorResponse('Access denied', 403);
+      return errorResponse('Only mill managers can access mill analytics', 403);
     }
 
     const millId = session.user.millId;
-    if (!millId && session.user.role !== 'SYSTEM_ADMIN') {
+    if (!millId && session.user.role !== Role.SYSTEM_ADMIN) {
       return errorResponse('User is not assigned to a mill', 403);
     }
 

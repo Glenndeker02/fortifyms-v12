@@ -4,21 +4,25 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
-import { isFWGAStaff } from '@/lib/auth';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, Role, isFWGAStaff } from '@/lib/rbac';
 
 /**
  * GET /api/analytics/fwga-inspector
  * Analytics data for FWGA inspector dashboard
+ *
+ * Requires: Permission.ANALYTICS_NATIONAL
+ * Roles: FWGA_INSPECTOR, FWGA_PROGRAM_MANAGER, SYSTEM_ADMIN
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.ANALYTICS_NATIONAL, 'national analytics');
 
-    // Only FWGA staff can access this
-    if (!isFWGAStaff(session.user.role) && session.user.role !== 'SYSTEM_ADMIN') {
-      return errorResponse('Access denied', 403);
+    // Only FWGA staff and admins can access this
+    if (!isFWGAStaff(session.user.role) && session.user.role !== Role.SYSTEM_ADMIN) {
+      return errorResponse('Only FWGA staff can access national analytics', 403);
     }
 
     const userId = session.user.id;
