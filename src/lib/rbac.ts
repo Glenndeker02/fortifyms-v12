@@ -71,11 +71,68 @@ export enum Permission {
   ORDER_APPROVE = 'ORDER_APPROVE',
   ORDER_FULFILL = 'ORDER_FULFILL',
 
+  // RFP & Bidding
+  RFP_VIEW = 'RFP_VIEW',
+  RFP_CREATE = 'RFP_CREATE',
+  RFP_EDIT = 'RFP_EDIT',
+  RFP_DELETE = 'RFP_DELETE',
+  RFP_PUBLISH = 'RFP_PUBLISH',
+  BID_CREATE = 'BID_CREATE',
+  BID_VIEW = 'BID_VIEW',
+  BID_EDIT = 'BID_EDIT',
+  BID_WITHDRAW = 'BID_WITHDRAW',
+  BID_EVALUATE = 'BID_EVALUATE',
+  BID_AWARD = 'BID_AWARD',
+
+  // Buyer Management
+  BUYER_REGISTER = 'BUYER_REGISTER',
+  BUYER_VIEW = 'BUYER_VIEW',
+  BUYER_EDIT = 'BUYER_EDIT',
+  BUYER_VERIFY = 'BUYER_VERIFY',
+
   // Deliveries & Logistics
   DELIVERY_VIEW = 'DELIVERY_VIEW',
   DELIVERY_CREATE = 'DELIVERY_CREATE',
   DELIVERY_UPDATE = 'DELIVERY_UPDATE',
   DELIVERY_CONFIRM = 'DELIVERY_CONFIRM',
+
+  // Route Planning & Trips
+  ROUTE_VIEW = 'ROUTE_VIEW',
+  ROUTE_CREATE = 'ROUTE_CREATE',
+  ROUTE_EDIT = 'ROUTE_EDIT',
+  ROUTE_DELETE = 'ROUTE_DELETE',
+  TRIP_VIEW = 'TRIP_VIEW',
+  TRIP_CREATE = 'TRIP_CREATE',
+  TRIP_MANAGE = 'TRIP_MANAGE',
+  TRIP_START = 'TRIP_START',
+  TRIP_COMPLETE = 'TRIP_COMPLETE',
+
+  // Proof of Delivery
+  POD_CREATE = 'POD_CREATE',
+  POD_VIEW = 'POD_VIEW',
+  POD_VERIFY = 'POD_VERIFY',
+  POD_DISPUTE = 'POD_DISPUTE',
+
+  // GPS Tracking
+  TRACKING_VIEW = 'TRACKING_VIEW',
+  TRACKING_UPDATE = 'TRACKING_UPDATE',
+
+  // Support & Help System
+  HELP_VIEW = 'HELP_VIEW',
+  HELP_MANAGE = 'HELP_MANAGE',
+  TICKET_CREATE = 'TICKET_CREATE',
+  TICKET_VIEW = 'TICKET_VIEW',
+  TICKET_VIEW_ALL = 'TICKET_VIEW_ALL',
+  TICKET_ASSIGN = 'TICKET_ASSIGN',
+  TICKET_RESOLVE = 'TICKET_RESOLVE',
+
+  // IoT Sensors & Predictive Maintenance
+  SENSOR_VIEW = 'SENSOR_VIEW',
+  SENSOR_MANAGE = 'SENSOR_MANAGE',
+  SENSOR_DATA_VIEW = 'SENSOR_DATA_VIEW',
+  SENSOR_ALERT_VIEW = 'SENSOR_ALERT_VIEW',
+  SENSOR_ALERT_CONFIGURE = 'SENSOR_ALERT_CONFIGURE',
+  PREDICTIVE_MAINTENANCE_VIEW = 'PREDICTIVE_MAINTENANCE_VIEW',
 
   // Analytics & Reports
   ANALYTICS_MILL = 'ANALYTICS_MILL',
@@ -110,6 +167,15 @@ export enum ResourceType {
   DELIVERY = 'DELIVERY',
   USER = 'USER',
   MILL = 'MILL',
+  RFP = 'RFP',
+  BID = 'BID',
+  BUYER = 'BUYER',
+  ROUTE = 'ROUTE',
+  DELIVERY_TRIP = 'DELIVERY_TRIP',
+  POD = 'POD',
+  HELP_ARTICLE = 'HELP_ARTICLE',
+  SUPPORT_TICKET = 'SUPPORT_TICKET',
+  IOT_SENSOR = 'IOT_SENSOR',
 }
 
 /**
@@ -190,9 +256,41 @@ const MILL_MANAGER_PERMISSIONS: Permission[] = [
   Permission.ORDER_CREATE,
   Permission.ORDER_FULFILL,
 
+  // RFP & Bidding
+  Permission.RFP_VIEW,
+  Permission.BID_CREATE,
+  Permission.BID_VIEW,
+  Permission.BID_EDIT,
+  Permission.BID_WITHDRAW,
+
   // Deliveries
   Permission.DELIVERY_VIEW,
   Permission.DELIVERY_CREATE,
+
+  // Routes and Trips
+  Permission.ROUTE_VIEW,
+  Permission.ROUTE_CREATE,
+  Permission.TRIP_VIEW,
+  Permission.TRIP_CREATE,
+  Permission.TRIP_MANAGE,
+
+  // POD
+  Permission.POD_VIEW,
+  Permission.POD_VERIFY,
+
+  // Tracking
+  Permission.TRACKING_VIEW,
+
+  // Support
+  Permission.HELP_VIEW,
+  Permission.TICKET_CREATE,
+  Permission.TICKET_VIEW,
+
+  // IoT Sensors
+  Permission.SENSOR_VIEW,
+  Permission.SENSOR_DATA_VIEW,
+  Permission.SENSOR_ALERT_VIEW,
+  Permission.PREDICTIVE_MAINTENANCE_VIEW,
 
   // Reports
   Permission.REPORT_GENERATE,
@@ -256,6 +354,28 @@ const FWGA_PROGRAM_MANAGER_PERMISSIONS: Permission[] = [
   // Full alert management
   Permission.ALERT_DELETE,
 
+  // Buyer management
+  Permission.BUYER_VIEW,
+  Permission.BUYER_VERIFY,
+
+  // RFP evaluation
+  Permission.BID_EVALUATE,
+  Permission.BID_AWARD,
+
+  // Route management
+  Permission.ROUTE_EDIT,
+  Permission.ROUTE_DELETE,
+
+  // Support management
+  Permission.HELP_MANAGE,
+  Permission.TICKET_VIEW_ALL,
+  Permission.TICKET_ASSIGN,
+  Permission.TICKET_RESOLVE,
+
+  // IoT Sensor management
+  Permission.SENSOR_MANAGE,
+  Permission.SENSOR_ALERT_CONFIGURE,
+
   // National analytics
   Permission.ANALYTICS_NATIONAL,
 
@@ -282,6 +402,23 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.FWGA_PROGRAM_MANAGER]: FWGA_PROGRAM_MANAGER_PERMISSIONS,
 
   [Role.INSTITUTIONAL_BUYER]: [
+    // Buyer profile
+    Permission.BUYER_REGISTER,
+    Permission.BUYER_VIEW,
+    Permission.BUYER_EDIT,
+
+    // RFP Management
+    Permission.RFP_VIEW,
+    Permission.RFP_CREATE,
+    Permission.RFP_EDIT,
+    Permission.RFP_DELETE,
+    Permission.RFP_PUBLISH,
+
+    // Bid evaluation
+    Permission.BID_VIEW,
+    Permission.BID_EVALUATE,
+    Permission.BID_AWARD,
+
     // Orders
     Permission.ORDER_VIEW,
     Permission.ORDER_CREATE,
@@ -291,6 +428,14 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     // Deliveries
     Permission.DELIVERY_VIEW,
     Permission.DELIVERY_CONFIRM,
+
+    // POD
+    Permission.POD_VIEW,
+    Permission.POD_VERIFY,
+    Permission.POD_DISPUTE,
+
+    // Tracking
+    Permission.TRACKING_VIEW,
 
     // Limited batch view
     Permission.BATCH_VIEW,
@@ -305,6 +450,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     // Reports
     Permission.REPORT_GENERATE,
 
+    // Support
+    Permission.HELP_VIEW,
+    Permission.TICKET_CREATE,
+    Permission.TICKET_VIEW,
+
     // Alerts related to orders
     Permission.ALERT_VIEW,
     Permission.ALERT_ACKNOWLEDGE,
@@ -315,11 +465,32 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.DELIVERY_VIEW,
     Permission.DELIVERY_UPDATE,
 
+    // Trips
+    Permission.TRIP_VIEW,
+    Permission.TRIP_START,
+    Permission.TRIP_COMPLETE,
+
+    // POD
+    Permission.POD_CREATE,
+    Permission.POD_VIEW,
+
+    // GPS Tracking
+    Permission.TRACKING_VIEW,
+    Permission.TRACKING_UPDATE,
+
+    // Routes
+    Permission.ROUTE_VIEW,
+
     // Orders (view only)
     Permission.ORDER_VIEW,
 
     // Batches (view for pickup)
     Permission.BATCH_VIEW,
+
+    // Support
+    Permission.HELP_VIEW,
+    Permission.TICKET_CREATE,
+    Permission.TICKET_VIEW,
 
     // Alerts
     Permission.ALERT_VIEW,

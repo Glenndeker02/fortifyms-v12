@@ -1674,6 +1674,375 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Logistics & Delivery Tracking Module
+model Route {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  startLocation     String   // JSON string with address and coordinates
+  stops             String   // JSON array of stops with addresses, coordinates, sequence
+  endLocation       String   // JSON string with address and coordinates
+  totalDistance     Float?   // in kilometers
+  estimatedDuration Int?     // in minutes
+  optimizationData  String?  // JSON string with route optimization details
+  status            String   @default("DRAFT") // DRAFT, ACTIVE, INACTIVE
+  createdBy         String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  deliveryTrips     DeliveryTrip[]
+
+  @@map("routes")
+}
+
+model DeliveryTrip {
+  id                String   @id @default(cuid())
+  tripNumber        String   @unique
+  routeId           String?
+  driverId          String
+  vehicleId         String?
+  vehicleInfo       String?  // JSON string with vehicle details (type, capacity, plate)
+
+  // Trip Details
+  status            String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  scheduledDate     DateTime
+  startTime         DateTime?
+  endTime           DateTime?
+
+  // Delivery Orders
+  orders            String   // JSON array of PurchaseOrder IDs and delivery details
+  deliverySequence  String?  // JSON array of delivery stop sequence
+
+  // Tracking
+  currentLocation   String?  // JSON string with latest GPS coordinates
+  locationHistory   String?  // JSON array of location updates with timestamps
+  estimatedArrival  DateTime?
+  actualArrival     DateTime?
+
+  // Performance
+  totalDistance     Float?
+  fuelUsed          Float?
+  avgSpeed          Float?
+  stops             Int      @default(0)
+  completedStops    Int      @default(0)
+
+  // Issues & Notes
+  issues            String?  // JSON array of issues encountered
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  route             Route?   @relation(fields: [routeId], references: [id])
+  trackingUpdates   TripTracking[]
+  proofOfDeliveries ProofOfDelivery[]
+
+  @@map("delivery_trips")
+}
+
+model TripTracking {
+  id                String   @id @default(cuid())
+  tripId            String
+  latitude          Float
+  longitude         Float
+  accuracy          Float?   // GPS accuracy in meters
+  speed             Float?   // Speed in km/h
+  heading           Float?   // Direction in degrees
+  altitude          Float?   // Altitude in meters
+  timestamp         DateTime @default(now())
+  batteryLevel      Int?     // Device battery percentage
+  isOffline         Boolean  @default(false)
+  metadata          String?  // JSON string for additional data
+
+  // Relations
+  trip              DeliveryTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("trip_tracking")
+  @@index([tripId, timestamp])
+}
+
+model ProofOfDelivery {
+  id                String   @id @default(cuid())
+  tripId            String
+  orderId           String   // PurchaseOrder ID
+  deliveryLocation  String   // JSON string with address and coordinates
+
+  // Delivery Details
+  deliveredAt       DateTime @default(now())
+  receivedBy        String   // Name of person who received
+  receivedByTitle   String?  // Job title/position
+  receivedByPhone   String?
+
+  // Verification
+  quantityOrdered   Float
+  quantityDelivered Float
+  discrepancy       Float?   // Calculated difference
+  discrepancyReason String?
+  conditionNotes    String?  // Condition of goods on delivery
+
+  // Evidence
+  signatureUrl      String?  // URL to signature image
+  photoUrls         String?  // JSON array of delivery photo URLs
+  batchNumbers      String?  // JSON array of batch numbers delivered
+
+  // Status
+  status            String   @default("SUBMITTED") // SUBMITTED, VERIFIED, DISPUTED, RESOLVED
+  verifiedBy        String?
+  verifiedAt        DateTime?
+  dispute           String?  // JSON string with dispute details
+  resolution        String?  // JSON string with resolution details
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  trip              DeliveryTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("proof_of_deliveries")
+}
+
+// Support & Help System Module
+model HelpCategory {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  description       String?
+  icon              String?
+  parentId          String?
+  order             Int      @default(0)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  parent            HelpCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children          HelpCategory[] @relation("CategoryHierarchy")
+  articles          HelpArticle[]
+
+  @@map("help_categories")
+}
+
+model HelpArticle {
+  id                String   @id @default(cuid())
+  title             String
+  slug              String   @unique
+  content           String   // Markdown or HTML content
+  excerpt           String?
+  categoryId        String
+
+  // Metadata
+  tags              String?  // JSON array of tags
+  keywords          String?  // For search optimization
+  relatedArticles   String?  // JSON array of related article IDs
+
+  // Media
+  featuredImage     String?
+  videoUrl          String?
+  attachments       String?  // JSON array of attachment URLs
+
+  // Publishing
+  status            String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  publishedAt       DateTime?
+  authorId          String
+  authorName        String
+
+  // Analytics
+  viewCount         Int      @default(0)
+  helpfulCount      Int      @default(0)
+  notHelpfulCount   Int      @default(0)
+
+  // Versioning
+  version           String   @default("1.0")
+  lastReviewedAt    DateTime?
+  lastReviewedBy    String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  category          HelpCategory @relation(fields: [categoryId], references: [id])
+  feedback          HelpFeedback[]
+
+  @@map("help_articles")
+}
+
+model HelpFeedback {
+  id                String   @id @default(cuid())
+  articleId         String
+  userId            String?
+  isHelpful         Boolean
+  comment           String?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  article           HelpArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("help_feedback")
+}
+
+model SupportTicket {
+  id                String   @id @default(cuid())
+  ticketNumber      String   @unique
+  userId            String   // User who created the ticket
+  userName          String
+  userEmail         String
+
+  // Ticket Details
+  subject           String
+  description       String
+  category          String   // TECHNICAL, ACCOUNT, TRAINING, QC, COMPLIANCE, PROCUREMENT, LOGISTICS, OTHER
+  priority          String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status            String   @default("OPEN") // OPEN, IN_PROGRESS, WAITING_FOR_USER, RESOLVED, CLOSED
+
+  // Assignment
+  assignedTo        String?
+  assignedToName    String?
+  assignedAt        DateTime?
+
+  // SLA Tracking
+  createdAt         DateTime @default(now())
+  firstResponseAt   DateTime?
+  firstResponseDue  DateTime?
+  resolutionDue     DateTime?
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+
+  // Metadata
+  source            String   @default("WEB") // WEB, EMAIL, MOBILE, PHONE
+  tags              String?  // JSON array of tags
+  relatedRecordType String?  // BATCH, ORDER, AUDIT, EQUIPMENT, etc.
+  relatedRecordId   String?
+
+  // Satisfaction
+  satisfactionRating Int?    // 1-5 stars
+  satisfactionComment String?
+
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  comments          TicketComment[]
+  attachments       TicketAttachment[]
+
+  @@map("support_tickets")
+}
+
+model TicketComment {
+  id                String   @id @default(cuid())
+  ticketId          String
+  userId            String
+  userName          String
+  userRole          String   // To identify if comment is from agent or user
+  content           String
+  isInternal        Boolean  @default(false) // Internal notes visible only to agents
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  ticket            SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_comments")
+}
+
+model TicketAttachment {
+  id                String   @id @default(cuid())
+  ticketId          String
+  fileName          String
+  filePath          String
+  fileSize          Int
+  mimeType          String
+  uploadedBy        String
+  uploadedByName    String
+  uploadedAt        DateTime @default(now())
+
+  // Relations
+  ticket            SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_attachments")
+}
+
+// IoT & Predictive Maintenance Module
+model IoTSensor {
+  id                String   @id @default(cuid())
+  equipmentId       String
+  sensorType        String   // TEMPERATURE, VIBRATION, PRESSURE, FLOW, HUMIDITY, POWER, etc.
+  sensorId          String   @unique // Physical sensor identifier
+  manufacturer      String?
+  model             String?
+  installationDate  DateTime?
+
+  // Configuration
+  unit              String   // °C, Hz, PSI, L/min, %, kW, etc.
+  minThreshold      Float?
+  maxThreshold      Float?
+  criticalMin       Float?
+  criticalMax       Float?
+  samplingInterval  Int      @default(60) // Seconds between readings
+
+  // Status
+  status            String   @default("ACTIVE") // ACTIVE, INACTIVE, MAINTENANCE, FAULTY
+  lastReading       Float?
+  lastReadingAt     DateTime?
+  batteryLevel      Int?
+  signalStrength    Int?
+
+  // Calibration
+  lastCalibrated    DateTime?
+  nextCalibrationDue DateTime?
+  calibrationOffset Float?
+
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  readings          SensorReading[]
+  alerts            SensorAlert[]
+
+  @@map("iot_sensors")
+}
+
+model SensorReading {
+  id                String   @id @default(cuid())
+  sensorId          String
+  value             Float
+  unit              String
+  quality           String?  // GOOD, FAIR, POOR (data quality indicator)
+  flags             String?  // JSON array of any flags (OUT_OF_RANGE, DRIFT, etc.)
+  timestamp         DateTime @default(now())
+
+  // Relations
+  sensor            IoTSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@map("sensor_readings")
+  @@index([sensorId, timestamp])
+  @@index([timestamp])
+}
+
+model SensorAlert {
+  id                String   @id @default(cuid())
+  sensorId          String
+  alertType         String   // THRESHOLD_EXCEEDED, DRIFT_DETECTED, ANOMALY, SENSOR_OFFLINE
+  severity          String   // LOW, MEDIUM, HIGH, CRITICAL
+  message           String
+  value             Float?
+  threshold         Float?
+  deviation         Float?
+  status            String   @default("ACTIVE") // ACTIVE, ACKNOWLEDGED, RESOLVED
+  acknowledgedBy    String?
+  acknowledgedAt    DateTime?
+  resolvedBy        String?
+  resolvedAt        DateTime?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  sensor            IoTSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@map("sensor_alerts")
+}
+
 // Error Logging
 model ErrorLog {
   id                String   @id @default(cuid())
