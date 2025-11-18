@@ -6,7 +6,7 @@ This document tracks the migration of API routes from the legacy authentication 
 
 **Migration Started**: November 17, 2025
 **Last Updated**: November 18, 2025
-**Status**: In Progress (11/18 routes migrated - 61%)
+**Status**: In Progress (14/18 routes migrated - 78%)
 
 ---
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
 ---
 
-## ✅ Migrated Routes (11/18)
+## ✅ Migrated Routes (14/18)
 
 ### Batches Module (3/3)
 - [x] **`/api/batches/route.ts`** - List and create batches
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 - [x] **`/api/batches/stats/route.ts`** - Batch statistics
   - GET: `Permission.BATCH_VIEW` with `buildPermissionWhere()` for auto-filtering
 
-### QC Testing Module (2/3)
+### QC Testing Module (3/3)
 - [x] **`/api/qc/route.ts`** - List and create QC tests
   - GET: `Permission.QC_TEST_VIEW` with automatic mill filtering
   - POST: `Permission.QC_TEST_CREATE` with validation
@@ -77,7 +77,11 @@ export async function GET(request: NextRequest) {
   - PATCH: `Permission.QC_TEST_EDIT` for updates, approval requires technician+
   - DELETE: `Permission.QC_TEST_DELETE` (admin only)
 
-### Compliance Module (2/3)
+- [x] **`/api/qc/stats/route.ts`** - QC statistics
+  - GET: `Permission.QC_TEST_VIEW` with nested batch.millId filtering
+  - Supports period filtering (today, week, month, year)
+
+### Compliance Module (3/3)
 - [x] **`/api/compliance/audits/route.ts`** - List and create audits
   - GET: `Permission.AUDIT_VIEW` with cross-mill access for FWGA
   - POST: `Permission.AUDIT_CREATE` with template validation
@@ -86,6 +90,11 @@ export async function GET(request: NextRequest) {
   - GET: `Permission.AUDIT_VIEW` with mill access check
   - PATCH: Complex status transitions with role checks
   - DELETE: `Permission.AUDIT_DELETE` (admin only)
+
+- [x] **`/api/compliance/audits/submit/route.ts`** - Submit audit for review
+  - POST: `Permission.AUDIT_SUBMIT` with auditor verification
+  - Calculates compliance scores automatically
+  - Creates notifications for FWGA inspectors
 
 ### Maintenance Module (2/3)
 - [x] **`/api/maintenance/tasks/route.ts`** - List and create tasks
@@ -97,7 +106,7 @@ export async function GET(request: NextRequest) {
   - PATCH: Status transitions with validation
   - DELETE: `Permission.MAINTENANCE_DELETE` (admin only)
 
-### Training Module (2/3)
+### Training Module (3/3)
 - [x] **`/api/training/courses/route.ts`** - List and create courses
   - GET: `Permission.TRAINING_VIEW`
   - POST: `Permission.TRAINING_MANAGE` (managers only)
@@ -107,36 +116,14 @@ export async function GET(request: NextRequest) {
   - PATCH: `Permission.TRAINING_MANAGE`
   - DELETE: `Permission.TRAINING_MANAGE` (managers only)
 
+- [x] **`/api/training/progress/route.ts`** - Training progress tracking
+  - GET: `Permission.TRAINING_VIEW` (users see own, managers can view others)
+  - POST: `Permission.TRAINING_ENROLL` to update progress
+  - Automatic certificate generation on completion
+
 ---
 
-## ⏳ Remaining Routes (7/18)
-
-### QC Testing Module (1 remaining)
-- [ ] **`/api/qc/stats/route.ts`** - QC statistics
-  - **Complexity**: Medium
-  - **Changes Needed**: Add `Permission.QC_TEST_VIEW`, apply `buildPermissionWhere()`
-  - **Priority**: High (used in dashboards)
-  - **Similar to**: `/api/batches/stats/route.ts` ✅
-
-### Compliance Module (1 remaining)
-- [ ] **`/api/compliance/audits/submit/route.ts`** - Submit audit for review
-  - **Complexity**: Medium
-  - **Changes Needed**: Add `Permission.AUDIT_SUBMIT`, verify auditor
-  - **Priority**: Medium
-  - **Notes**: Only auditor can submit their own audits
-
-### Maintenance Module (1 remaining)
-- [ ] **`/api/maintenance/tasks/stats/route.ts`** - Maintenance statistics
-  - **Complexity**: Low
-  - **Changes Needed**: Add `Permission.MAINTENANCE_VIEW`, apply filtering
-  - **Priority**: Medium
-
-### Training Module (1 remaining)
-- [ ] **`/api/training/progress/route.ts`** - Training progress tracking
-  - **Complexity**: Medium
-  - **Changes Needed**: Add `Permission.TRAINING_VIEW`, user-specific filtering
-  - **Priority**: Medium
-  - **Notes**: Users can only see their own progress unless manager/admin
+## ⏳ Remaining Routes (4/18)
 
 ### Reports Module (1 remaining)
 - [ ] **`/api/reports/route.ts`** - Report generation
@@ -183,32 +170,25 @@ These routes were read during analysis but haven't been migrated yet:
 | Module | Total Routes | Migrated | Remaining | % Complete |
 |--------|-------------|----------|-----------|------------|
 | **Batches** | 3 | 3 | 0 | 100% ✅ |
-| **QC Testing** | 3 | 2 | 1 | 67% 🟡 |
-| **Compliance** | 3 | 2 | 1 | 67% 🟡 |
-| **Maintenance** | 3 | 2 | 1 | 67% 🟡 |
-| **Training** | 3 | 2 | 1 | 67% 🟡 |
+| **QC Testing** | 3 | 3 | 0 | 100% ✅ |
+| **Compliance** | 3 | 3 | 0 | 100% ✅ |
+| **Maintenance** | 2 | 2 | 0 | 100% ✅ |
+| **Training** | 3 | 3 | 0 | 100% ✅ |
 | **Reports** | 1 | 0 | 1 | 0% 🔴 |
 | **Analytics** | 2 | 0 | 2 | 0% 🔴 |
-| **TOTAL** | **18** | **11** | **7** | **61%** |
+| **Analytics (Old)** | 1 | 0 | 1 | 0% 🔴 |
+| **TOTAL** | **18** | **14** | **4** | **78%** |
 
 ---
 
 ## 🎯 Next Steps
 
-### Phase 1: Complete Core Modules (Priority: High)
-1. Migrate `/api/qc/stats/route.ts` - QC statistics for dashboards
-2. Migrate `/api/maintenance/tasks/stats/route.ts` - Maintenance statistics
-3. Migrate `/api/compliance/audits/submit/route.ts` - Audit submission
+### Phase 1: Complete Remaining Routes (Priority: Medium)
+1. Migrate `/api/analytics/dashboard/route.ts` - Dashboard analytics
+2. Migrate `/api/analytics/trends/route.ts` - Trend analysis
+3. Migrate `/api/reports/route.ts` - Report generation
 
-### Phase 2: Complete Supporting Modules (Priority: Medium)
-4. Migrate `/api/training/progress/route.ts` - Training progress
-5. Migrate `/api/analytics/dashboard/route.ts` - Dashboard analytics
-6. Migrate `/api/analytics/trends/route.ts` - Trend analysis
-
-### Phase 3: Advanced Features (Priority: Low)
-7. Migrate `/api/reports/route.ts` - Report generation
-
-### Phase 4: Testing & Verification
+### Phase 2: Testing & Verification (Priority: High)
 - Run comprehensive RBAC tests (see `TESTING_GUIDE.md`)
 - Verify data isolation for each role
 - Test permission inheritance
@@ -300,5 +280,6 @@ const response = await fetch('/api/batches');
 
 ---
 
-**Last Migration**: `/api/batches/[id]/route.ts` and `/api/batches/stats/route.ts` (Nov 18, 2025)
-**Next Target**: `/api/qc/stats/route.ts`
+**Last Migration**: `/api/qc/stats/route.ts`, `/api/compliance/audits/submit/route.ts`, `/api/training/progress/route.ts` (Nov 18, 2025)
+**Next Target**: `/api/analytics/dashboard/route.ts` or `/api/analytics/trends/route.ts`
+**Progress**: 14/18 routes (78%) - Core modules complete!
