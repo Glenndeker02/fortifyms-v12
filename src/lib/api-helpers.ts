@@ -476,3 +476,23 @@ export function sanitizeObject<T extends Record<string, unknown>>(
 
   return sanitized;
 }
+
+/**
+ * Alias for parsePaginationParams for backward compatibility
+ */
+export function getPaginationParams(request: Request): PaginationParams {
+  const url = new URL(request.url);
+  return parsePaginationParams(url.searchParams);
+}
+
+/**
+ * Alias for parseSortParams for backward compatibility
+ */
+export function getSortingParams(
+  request: Request,
+  allowedFields: string[],
+  defaultField: string = 'createdAt'
+): { field: string; order: SortOrder } {
+  const url = new URL(request.url);
+  return parseSortParams(url.searchParams, allowedFields, defaultField);
+}

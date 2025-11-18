@@ -19,11 +19,12 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
-import AnalyticsDashboard from '@/components/procurement/analytics/AnalyticsDashboard';
-import MarketInsights from '@/components/procurement/analytics/MarketInsights';
-import MarketVisualization from '@/components/procurement/analytics/MarketVisualization';
-import PerformanceRankings from '@/components/procurement/analytics/PerformanceRankings';
-import { AnalyticsDashboard as FortifyAnalyticsDashboard } from '@/components/analytics/analytics-dashboard';
+// TODO: Implement these components
+// import AnalyticsDashboard from '@/components/procurement/analytics/AnalyticsDashboard';
+// import MarketInsights from '@/components/procurement/analytics/MarketInsights';
+// import MarketVisualization from '@/components/procurement/analytics/MarketVisualization';
+// import PerformanceRankings from '@/components/procurement/analytics/PerformanceRankings';
+// import { AnalyticsDashboard as FortifyAnalyticsDashboard } from '@/components/analytics/analytics-dashboard';
 
 export default function AnalyticsPage() {
   const { data: session } = useSession();
@@ -182,23 +183,63 @@ export default function AnalyticsPage() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <AnalyticsDashboard />
+            <Card>
+              <CardHeader>
+                <CardTitle>Analytics Overview</CardTitle>
+                <CardDescription>Coming soon - Comprehensive procurement analytics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">This section is under development.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="insights" className="space-y-6">
-            <MarketInsights />
+            <Card>
+              <CardHeader>
+                <CardTitle>Market Insights</CardTitle>
+                <CardDescription>Coming soon - AI-powered market intelligence</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">This section is under development.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="visualization" className="space-y-6">
-            <MarketVisualization />
+            <Card>
+              <CardHeader>
+                <CardTitle>Geographic Visualization</CardTitle>
+                <CardDescription>Coming soon - Interactive maps and visualizations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">This section is under development.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="rankings" className="space-y-6">
-            <PerformanceRankings />
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance Rankings</CardTitle>
+                <CardDescription>Coming soon - Mill and supplier rankings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">This section is under development.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="fortify-analytics" className="space-y-6">
-            <FortifyAnalyticsDashboard userRole={userRole} millId={millId} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Fortification Analytics</CardTitle>
+                <CardDescription>Coming soon - Detailed fortification metrics and analysis</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">This section is under development. Use the role-specific dashboards for now.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">

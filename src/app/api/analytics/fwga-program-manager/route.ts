@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     `;
 
     // Production volume trend (by commodity)
-    const productionTrend = await db.$queryRaw<
+    const productionVolumeTrend = await db.$queryRaw<
       Array<{ month: string; commodity: string; volume: number }>
     >`
       SELECT
@@ -336,7 +336,7 @@ export async function GET(request: NextRequest) {
       },
       trends: {
         compliance: complianceTrend,
-        production: productionTrend,
+        production: productionVolumeTrend,
         qcPassRate: qcTrend.map((m) => ({
           month: m.month,
           passRate:
