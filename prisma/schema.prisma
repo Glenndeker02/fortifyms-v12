@@ -49,7 +49,10 @@ model User {
   escalationFrom       AlertEscalation[] @relation("EscalationFrom")
   escalationTo         AlertEscalation[] @relation("EscalationTo")
   alertActions         AlertAction[]
-  
+
+  // Inspection Relations
+  inspections          Inspection[] @relation("InspectorInspections")
+
   @@map("users")
 }
 
@@ -91,9 +94,12 @@ model Mill {
   address           String?
   phone             String?
   email             String?
+  latitude          Float?
+  longitude         Float?
   isActive          Boolean  @default(true)
   certificationStatus String @default("PENDING")
   certificationDate DateTime?
+  lastInspectionDate DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -112,7 +118,9 @@ model Mill {
   reviews           MillReview[]
   alerts            Alert[]
   actionItems       ActionItem[]
-  
+  procurements      Procurement[]
+  inspections       Inspection[]
+
   @@map("mills")
 }
 
@@ -1662,6 +1670,83 @@ model AuditLog {
 
   // Relations
   user              User?    @relation(fields: [userId], references: [id])
-  
+
   @@map("audit_logs")
+}
+
+// Supplier Management
+model Supplier {
+  id                String   @id @default(cuid())
+  name              String
+  supplierType      String   // PREMIX_MANUFACTURER, RAW_MATERIAL, PACKAGING, LOGISTICS, OTHER
+  contactPerson     String?
+  phone             String?
+  email             String?
+  address           String?
+  country           String?
+  certificationStatus String @default("PENDING")
+  rating            Float?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  procurements      Procurement[]
+
+  @@map("suppliers")
+}
+
+// Procurement Management
+model Procurement {
+  id                String   @id @default(cuid())
+  orderId           String   @unique
+  millId            String
+  supplierId        String
+  buyerId           String?
+  itemName          String
+  itemType          String?  // PREMIX, RAW_MATERIAL, PACKAGING, EQUIPMENT_PARTS, OTHER
+  quantity          Float
+  unit              String   @default("kg")
+  unitCost          Float?
+  totalCost         Float?
+  orderDate         DateTime @default(now())
+  expectedDeliveryDate DateTime?
+  deliveryDate      DateTime?
+  status            String   @default("ORDERED") // ORDERED, IN_TRANSIT, DELIVERED, CANCELLED, REJECTED
+  notes             String?
+  invoiceNumber     String?
+  paymentStatus     String   @default("PENDING")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mill              Mill     @relation(fields: [millId], references: [id])
+  supplier          Supplier @relation(fields: [supplierId], references: [id])
+
+  @@map("procurements")
+}
+
+// Inspection Management
+model Inspection {
+  id                String   @id @default(cuid())
+  inspectorId       String
+  millId            String
+  inspectionType    String   // ROUTINE, CERTIFICATION, SPOT_CHECK, FOLLOW_UP
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  status            String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  findings          String?  // JSON string
+  score             Float?
+  recommendations   String?  // JSON string
+  nextInspectionDate DateTime?
+  notes             String?
+  evidence          String?  // JSON array of file URLs
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  inspector         User     @relation("InspectorInspections", fields: [inspectorId], references: [id])
+  mill              Mill     @relation(fields: [millId], references: [id])
+
+  @@map("inspections")
 }
