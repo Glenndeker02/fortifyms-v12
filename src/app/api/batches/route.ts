@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { batchLogSchema } from '@/lib/validations';
 import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
   getPaginationParams,
   getSortingParams,
 } from '@/lib/api-helpers';
-import { canAccessMillData, isMillStaff } from '@/lib/auth';
+import { requirePermissions, buildPermissionWhere } from '@/lib/permissions-middleware';
+import { Permission } from '@/lib/rbac';
 
 /**
  * GET /api/batches
@@ -31,7 +29,8 @@ import { canAccessMillData, isMillStaff } from '@/lib/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.BATCH_VIEW, 'batches');
 
     // Get pagination and sorting params
     const { skip, take } = getPaginationParams(request);
@@ -44,36 +43,32 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Build where clause
-    const where: any = {};
+    // Build where clause with automatic tenant/mill filtering
+    const baseWhere: any = {};
 
-    // Role-based filtering
-    if (isMillStaff(session.user.role)) {
-      // Mill staff can only see batches from their mill
-      if (!session.user.millId) {
-        return errorResponse('User is not assigned to a mill', 403);
-      }
-      where.millId = session.user.millId;
-    } else if (millId) {
-      // FWGA staff and admins can filter by mill
-      where.millId = millId;
+    // Optional mill filter (for FWGA staff viewing specific mills)
+    if (millId) {
+      baseWhere.millId = millId;
     }
 
     // Status filter
     if (status) {
-      where.status = status;
+      baseWhere.status = status;
     }
 
     // Date range filter
     if (startDate || endDate) {
-      where.createdAt = {};
+      baseWhere.createdAt = {};
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        baseWhere.createdAt.gte = new Date(startDate);
       }
       if (endDate) {
-        where.createdAt.lte = new Date(endDate);
+        baseWhere.createdAt.lte = new Date(endDate);
       }
     }
+
+    // Apply permission-based filtering (tenant/mill isolation)
+    const where = buildPermissionWhere(session, baseWhere);
 
     // Get batches with related data
     const [batches, total] = await Promise.all([
@@ -139,12 +134,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
-
-    // Only mill staff can create batches
-    if (!isMillStaff(session.user.role)) {
-      return errorResponse('Only mill staff can create batch logs', 403);
-    }
+    // Check permission and get session
+    const session = await requirePermissions(Permission.BATCH_CREATE, 'batches');
 
     // Mill staff must have a mill assigned
     if (!session.user.millId) {
@@ -156,7 +147,7 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = batchLogSchema.parse(body);
 
-    // Ensure mill ID matches user's mill
+    // Ensure mill ID matches user's mill (enforces tenant isolation)
     if (validatedData.millId !== session.user.millId) {
       return errorResponse('You can only create batches for your assigned mill', 403);
     }

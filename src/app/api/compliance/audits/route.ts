@@ -4,11 +4,11 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
   getPaginationParams,
   getSortingParams,
 } from '@/lib/api-helpers';
-import { canAccessMillData, isMillStaff, isFWGAStaff } from '@/lib/auth';
+import { requirePermissions, buildPermissionWhere } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff, isFWGAStaff, Role } from '@/lib/rbac';
 
 /**
  * GET /api/compliance/audits
@@ -29,7 +29,8 @@ import { canAccessMillData, isMillStaff, isFWGAStaff } from '@/lib/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.AUDIT_VIEW, 'audits');
 
     // Get pagination and sorting params
     const { skip, take } = getPaginationParams(request);
@@ -43,41 +44,37 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Build where clause
-    const where: any = {};
+    // Build base where clause
+    const baseWhere: any = {};
 
-    // Role-based filtering
-    if (isMillStaff(session.user.role)) {
-      // Mill staff can only see audits from their mill
-      if (!session.user.millId) {
-        return errorResponse('User is not assigned to a mill', 403);
-      }
-      where.millId = session.user.millId;
-    } else if (millId) {
-      // FWGA staff and admins can filter by mill
-      where.millId = millId;
+    // Optional mill filter (for FWGA staff viewing specific mills)
+    if (millId) {
+      baseWhere.millId = millId;
     }
 
     // Status filter
     if (status) {
-      where.status = status;
+      baseWhere.status = status;
     }
 
     // Audit type filter
     if (auditType) {
-      where.auditType = auditType;
+      baseWhere.auditType = auditType;
     }
 
     // Date range filter
     if (startDate || endDate) {
-      where.auditDate = {};
+      baseWhere.auditDate = {};
       if (startDate) {
-        where.auditDate.gte = new Date(startDate);
+        baseWhere.auditDate.gte = new Date(startDate);
       }
       if (endDate) {
-        where.auditDate.lte = new Date(endDate);
+        baseWhere.auditDate.lte = new Date(endDate);
       }
     }
+
+    // Apply permission-based filtering (tenant/mill isolation)
+    const where = buildPermissionWhere(session, baseWhere);
 
     // Get audits with related data
     const [audits, total] = await Promise.all([
@@ -160,16 +157,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
-
-    // Only mill staff and FWGA inspectors can create audits
-    if (
-      !isMillStaff(session.user.role) &&
-      !isFWGAStaff(session.user.role) &&
-      session.user.role !== 'SYSTEM_ADMIN'
-    ) {
-      return errorResponse('You do not have permission to create audits', 403);
-    }
+    // Check permission and get session
+    const session = await requirePermissions(Permission.AUDIT_CREATE, 'audits');
 
     const body = await request.json();
 

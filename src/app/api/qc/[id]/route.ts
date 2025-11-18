@@ -4,9 +4,9 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
 } from '@/lib/api-helpers';
-import { canAccessMillData, canPerformQC } from '@/lib/auth';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff, Role } from '@/lib/rbac';
 
 /**
  * GET /api/qc/[id]
@@ -17,7 +17,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.QC_TEST_VIEW, 'QC tests');
 
     const qcTest = await db.qCTest.findUnique({
       where: { id: params.id },
@@ -77,9 +78,11 @@ export async function GET(
       return errorResponse('QC test not found', 404);
     }
 
-    // Check access permissions based on batch's mill
-    if (!canAccessMillData(session.user.role, session.user.millId, qcTest.batch.mill.id)) {
-      return errorResponse('You do not have access to this QC test', 403);
+    // Check mill access for mill staff (FWGA can access any mill)
+    if (isMillStaff(session.user.role)) {
+      if (session.user.millId !== qcTest.batch.mill.id) {
+        return errorResponse('You do not have access to this QC test', 403);
+      }
     }
 
     return successResponse(qcTest);
@@ -103,12 +106,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth();
-
-    // Only users with QC permissions can update QC tests
-    if (!canPerformQC(session.user.role)) {
-      return errorResponse('You do not have permission to update QC tests', 403);
-    }
+    // Check permission and get session
+    const session = await requirePermissions(Permission.QC_TEST_EDIT, 'QC tests');
 
     // Get existing QC test
     const existingTest = await db.qCTest.findUnique({
@@ -131,9 +130,11 @@ export async function PATCH(
       return errorResponse('QC test not found', 404);
     }
 
-    // Check access permissions
-    if (!canAccessMillData(session.user.role, session.user.millId, existingTest.batch.mill.id)) {
-      return errorResponse('You do not have access to this QC test', 403);
+    // Check mill access for mill staff (FWGA can access any mill)
+    if (isMillStaff(session.user.role)) {
+      if (session.user.millId !== existingTest.batch.mill.id) {
+        return errorResponse('You do not have access to this QC test', 403);
+      }
     }
 
     const body = await request.json();
@@ -254,10 +255,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session (only system admins have delete permission)
+    const session = await requirePermissions(Permission.QC_TEST_EDIT, 'QC tests');
 
     // Only system admins can delete QC tests
-    if (session.user.role !== 'SYSTEM_ADMIN') {
+    if (session.user.role !== Role.SYSTEM_ADMIN) {
       return errorResponse('Only system administrators can delete QC tests', 403);
     }
 

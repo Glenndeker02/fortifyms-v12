@@ -113,166 +113,173 @@ export enum ResourceType {
 }
 
 /**
+ * Base permission mappings for each role
+ * Defined separately to avoid circular references
+ */
+const MILL_OPERATOR_PERMISSIONS: Permission[] = [
+  // Batch Management
+  Permission.BATCH_CREATE,
+  Permission.BATCH_VIEW,
+  Permission.BATCH_EDIT,
+
+  // QC Management
+  Permission.QC_TEST_CREATE,
+  Permission.QC_TEST_VIEW,
+
+  // Equipment & Maintenance
+  Permission.EQUIPMENT_VIEW,
+  Permission.MAINTENANCE_VIEW,
+  Permission.MAINTENANCE_CREATE,
+
+  // Training
+  Permission.TRAINING_VIEW,
+  Permission.TRAINING_ENROLL,
+
+  // Alerts
+  Permission.ALERT_VIEW,
+  Permission.ALERT_ACKNOWLEDGE,
+
+  // Action Items
+  Permission.ACTION_ITEM_VIEW,
+  Permission.ACTION_ITEM_COMPLETE,
+
+  // Analytics
+  Permission.ANALYTICS_MILL,
+];
+
+const MILL_TECHNICIAN_PERMISSIONS: Permission[] = [
+  ...MILL_OPERATOR_PERMISSIONS,
+
+  // Additional QC permissions
+  Permission.QC_TEST_EDIT,
+  Permission.QC_TEST_APPROVE,
+
+  // Additional Equipment permissions
+  Permission.EQUIPMENT_EDIT,
+  Permission.MAINTENANCE_COMPLETE,
+
+  // Alert resolution
+  Permission.ALERT_RESOLVE,
+];
+
+const MILL_MANAGER_PERMISSIONS: Permission[] = [
+  ...MILL_TECHNICIAN_PERMISSIONS,
+
+  // Batch approval
+  Permission.BATCH_APPROVE,
+  Permission.BATCH_DELETE,
+
+  // QC rejection
+  Permission.QC_TEST_REJECT,
+
+  // Compliance
+  Permission.AUDIT_VIEW,
+  Permission.AUDIT_CREATE,
+  Permission.AUDIT_EDIT,
+  Permission.AUDIT_SUBMIT,
+
+  // Training management
+  Permission.TRAINING_MANAGE,
+
+  // Action Items
+  Permission.ACTION_ITEM_CREATE,
+  Permission.ACTION_ITEM_ASSIGN,
+
+  // Orders
+  Permission.ORDER_VIEW,
+  Permission.ORDER_CREATE,
+  Permission.ORDER_FULFILL,
+
+  // Deliveries
+  Permission.DELIVERY_VIEW,
+  Permission.DELIVERY_CREATE,
+
+  // Reports
+  Permission.REPORT_GENERATE,
+
+  // User management (limited to mill staff)
+  Permission.USER_VIEW,
+  Permission.USER_CREATE,
+  Permission.USER_EDIT,
+];
+
+const FWGA_INSPECTOR_PERMISSIONS: Permission[] = [
+  // View all mill operations
+  Permission.BATCH_VIEW,
+  Permission.QC_TEST_VIEW,
+  Permission.QC_TEST_APPROVE,
+  Permission.QC_TEST_REJECT,
+
+  // Compliance audits
+  Permission.AUDIT_VIEW,
+  Permission.AUDIT_CREATE,
+  Permission.AUDIT_EDIT,
+  Permission.AUDIT_APPROVE,
+
+  // Equipment inspection
+  Permission.EQUIPMENT_VIEW,
+  Permission.MAINTENANCE_VIEW,
+
+  // Training oversight
+  Permission.TRAINING_VIEW,
+  Permission.TRAINING_MANAGE,
+
+  // Alerts
+  Permission.ALERT_VIEW,
+  Permission.ALERT_CREATE,
+  Permission.ALERT_ACKNOWLEDGE,
+  Permission.ALERT_RESOLVE,
+
+  // Action Items
+  Permission.ACTION_ITEM_VIEW,
+  Permission.ACTION_ITEM_CREATE,
+  Permission.ACTION_ITEM_ASSIGN,
+
+  // Analytics
+  Permission.ANALYTICS_MILL,
+  Permission.ANALYTICS_REGIONAL,
+
+  // Reports
+  Permission.REPORT_GENERATE,
+  Permission.REPORT_SCHEDULE,
+];
+
+const FWGA_PROGRAM_MANAGER_PERMISSIONS: Permission[] = [
+  ...FWGA_INSPECTOR_PERMISSIONS,
+
+  // Additional batch permissions
+  Permission.BATCH_APPROVE,
+
+  // Training creation
+  Permission.TRAINING_CREATE,
+
+  // Full alert management
+  Permission.ALERT_DELETE,
+
+  // National analytics
+  Permission.ANALYTICS_NATIONAL,
+
+  // User management
+  Permission.USER_VIEW,
+  Permission.USER_CREATE,
+  Permission.USER_EDIT,
+  Permission.USER_DELETE,
+  Permission.USER_ASSIGN_ROLE,
+
+  // Audit logs
+  Permission.AUDIT_LOG_VIEW,
+];
+
+/**
  * Role permission mappings
  * Each role has a set of permissions they can perform
  */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  [Role.MILL_OPERATOR]: [
-    // Batch Management
-    Permission.BATCH_CREATE,
-    Permission.BATCH_VIEW,
-    Permission.BATCH_EDIT,
-
-    // QC Management
-    Permission.QC_TEST_CREATE,
-    Permission.QC_TEST_VIEW,
-
-    // Equipment & Maintenance
-    Permission.EQUIPMENT_VIEW,
-    Permission.MAINTENANCE_VIEW,
-    Permission.MAINTENANCE_CREATE,
-
-    // Training
-    Permission.TRAINING_VIEW,
-    Permission.TRAINING_ENROLL,
-
-    // Alerts
-    Permission.ALERT_VIEW,
-    Permission.ALERT_ACKNOWLEDGE,
-
-    // Action Items
-    Permission.ACTION_ITEM_VIEW,
-    Permission.ACTION_ITEM_COMPLETE,
-
-    // Analytics
-    Permission.ANALYTICS_MILL,
-  ],
-
-  [Role.MILL_TECHNICIAN]: [
-    // All Mill Operator permissions
-    ...ROLE_PERMISSIONS[Role.MILL_OPERATOR] || [],
-
-    // Additional QC permissions
-    Permission.QC_TEST_EDIT,
-    Permission.QC_TEST_APPROVE,
-
-    // Additional Equipment permissions
-    Permission.EQUIPMENT_EDIT,
-    Permission.MAINTENANCE_COMPLETE,
-
-    // Alert resolution
-    Permission.ALERT_RESOLVE,
-  ],
-
-  [Role.MILL_MANAGER]: [
-    // All Mill Technician permissions
-    ...ROLE_PERMISSIONS[Role.MILL_TECHNICIAN] || [],
-
-    // Batch approval
-    Permission.BATCH_APPROVE,
-    Permission.BATCH_DELETE,
-
-    // QC rejection
-    Permission.QC_TEST_REJECT,
-
-    // Compliance
-    Permission.AUDIT_VIEW,
-    Permission.AUDIT_CREATE,
-    Permission.AUDIT_EDIT,
-    Permission.AUDIT_SUBMIT,
-
-    // Training management
-    Permission.TRAINING_MANAGE,
-
-    // Action Items
-    Permission.ACTION_ITEM_CREATE,
-    Permission.ACTION_ITEM_ASSIGN,
-
-    // Orders
-    Permission.ORDER_VIEW,
-    Permission.ORDER_CREATE,
-    Permission.ORDER_FULFILL,
-
-    // Deliveries
-    Permission.DELIVERY_VIEW,
-    Permission.DELIVERY_CREATE,
-
-    // Reports
-    Permission.REPORT_GENERATE,
-
-    // User management (limited to mill staff)
-    Permission.USER_VIEW,
-    Permission.USER_CREATE,
-    Permission.USER_EDIT,
-  ],
-
-  [Role.FWGA_INSPECTOR]: [
-    // View all mill operations
-    Permission.BATCH_VIEW,
-    Permission.QC_TEST_VIEW,
-    Permission.QC_TEST_APPROVE,
-    Permission.QC_TEST_REJECT,
-
-    // Compliance audits
-    Permission.AUDIT_VIEW,
-    Permission.AUDIT_CREATE,
-    Permission.AUDIT_EDIT,
-    Permission.AUDIT_APPROVE,
-
-    // Equipment inspection
-    Permission.EQUIPMENT_VIEW,
-    Permission.MAINTENANCE_VIEW,
-
-    // Training oversight
-    Permission.TRAINING_VIEW,
-    Permission.TRAINING_MANAGE,
-
-    // Alerts
-    Permission.ALERT_VIEW,
-    Permission.ALERT_CREATE,
-    Permission.ALERT_ACKNOWLEDGE,
-    Permission.ALERT_RESOLVE,
-
-    // Action Items
-    Permission.ACTION_ITEM_VIEW,
-    Permission.ACTION_ITEM_CREATE,
-    Permission.ACTION_ITEM_ASSIGN,
-
-    // Analytics
-    Permission.ANALYTICS_MILL,
-    Permission.ANALYTICS_REGIONAL,
-
-    // Reports
-    Permission.REPORT_GENERATE,
-    Permission.REPORT_SCHEDULE,
-  ],
-
-  [Role.FWGA_PROGRAM_MANAGER]: [
-    // All FWGA Inspector permissions
-    ...ROLE_PERMISSIONS[Role.FWGA_INSPECTOR] || [],
-
-    // Additional batch permissions
-    Permission.BATCH_APPROVE,
-
-    // Training creation
-    Permission.TRAINING_CREATE,
-
-    // Full alert management
-    Permission.ALERT_DELETE,
-
-    // National analytics
-    Permission.ANALYTICS_NATIONAL,
-
-    // User management
-    Permission.USER_VIEW,
-    Permission.USER_CREATE,
-    Permission.USER_EDIT,
-    Permission.USER_DELETE,
-    Permission.USER_ASSIGN_ROLE,
-
-    // Audit logs
-    Permission.AUDIT_LOG_VIEW,
-  ],
+  [Role.MILL_OPERATOR]: MILL_OPERATOR_PERMISSIONS,
+  [Role.MILL_TECHNICIAN]: MILL_TECHNICIAN_PERMISSIONS,
+  [Role.MILL_MANAGER]: MILL_MANAGER_PERMISSIONS,
+  [Role.FWGA_INSPECTOR]: FWGA_INSPECTOR_PERMISSIONS,
+  [Role.FWGA_PROGRAM_MANAGER]: FWGA_PROGRAM_MANAGER_PERMISSIONS,
 
   [Role.INSTITUTIONAL_BUYER]: [
     // Orders
@@ -323,10 +330,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.ACTION_ITEM_COMPLETE,
   ],
 
-  [Role.SYSTEM_ADMIN]: [
-    // System admins have all permissions
-    ...Object.values(Permission),
-  ],
+  [Role.SYSTEM_ADMIN]: Object.values(Permission),
 };
 
 /**

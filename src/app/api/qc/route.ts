@@ -5,11 +5,11 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
   getPaginationParams,
   getSortingParams,
 } from '@/lib/api-helpers';
-import { canAccessMillData, isMillStaff, canPerformQC } from '@/lib/auth';
+import { requirePermissions, buildPermissionWhere } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff } from '@/lib/rbac';
 
 /**
  * GET /api/qc
@@ -30,7 +30,8 @@ import { canAccessMillData, isMillStaff, canPerformQC } from '@/lib/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.QC_TEST_VIEW, 'QC tests');
 
     // Get pagination and sorting params
     const { skip, take } = getPaginationParams(request);
@@ -44,60 +45,46 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Build where clause
-    const where: any = {};
+    // Build base where clause
+    const baseWhere: any = {};
 
-    // If filtering by batch, get the batch first to check mill access
+    // Batch filter
     if (batchId) {
-      const batch = await db.batchLog.findUnique({
-        where: { id: batchId },
-        select: { millId: true },
-      });
+      baseWhere.batchId = batchId;
+    }
 
-      if (!batch) {
-        return errorResponse('Batch not found', 404);
-      }
-
-      // Check access permissions
-      if (!canAccessMillData(session.user.role, session.user.millId, batch.millId)) {
-        return errorResponse('You do not have access to this batch', 403);
-      }
-
-      where.batchId = batchId;
-    } else {
-      // Role-based filtering when not filtering by specific batch
-      if (isMillStaff(session.user.role)) {
-        // Mill staff can only see QC tests from their mill
-        if (!session.user.millId) {
-          return errorResponse('User is not assigned to a mill', 403);
-        }
-
-        // Get batches from user's mill
-        where.batch = {
-          millId: session.user.millId,
-        };
-      } else if (millId) {
-        // FWGA staff and admins can filter by mill
-        where.batch = {
-          millId,
-        };
-      }
+    // Mill filter through batch relationship
+    if (millId && !isMillStaff(session.user.role)) {
+      // Only allow FWGA staff to filter by mill (mill staff auto-filtered)
+      baseWhere.batch = { millId };
     }
 
     // Status filter
     if (status) {
-      where.status = status;
+      baseWhere.status = status;
     }
 
     // Date range filter
     if (startDate || endDate) {
-      where.testDate = {};
+      baseWhere.testDate = {};
       if (startDate) {
-        where.testDate.gte = new Date(startDate);
+        baseWhere.testDate.gte = new Date(startDate);
       }
       if (endDate) {
-        where.testDate.lte = new Date(endDate);
+        baseWhere.testDate.lte = new Date(endDate);
       }
+    }
+
+    // For mill staff, filter through batch relationship
+    let where = baseWhere;
+    if (isMillStaff(session.user.role) && session.user.millId) {
+      where = {
+        ...baseWhere,
+        batch: {
+          ...baseWhere.batch,
+          millId: session.user.millId,
+        },
+      };
     }
 
     // Get QC tests with related data
@@ -167,12 +154,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
-
-    // Only users with QC permissions can create QC tests
-    if (!canPerformQC(session.user.role)) {
-      return errorResponse('You do not have permission to perform QC tests', 403);
-    }
+    // Check permission and get session
+    const session = await requirePermissions(Permission.QC_TEST_CREATE, 'QC tests');
 
     const body = await request.json();
 
@@ -196,9 +179,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('Batch not found', 404);
     }
 
-    // Check access permissions
-    if (!canAccessMillData(session.user.role, session.user.millId, batch.mill.id)) {
-      return errorResponse('You do not have access to this batch', 403);
+    // Check mill access for mill staff (FWGA can access any mill)
+    if (isMillStaff(session.user.role)) {
+      if (session.user.millId !== batch.mill.id) {
+        return errorResponse('You do not have access to this batch', 403);
+      }
     }
 
     // Create QC sample first (if not linked to existing sample)

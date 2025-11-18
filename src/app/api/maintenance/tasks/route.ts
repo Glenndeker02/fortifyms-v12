@@ -4,11 +4,11 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
   getPaginationParams,
   getSortingParams,
 } from '@/lib/api-helpers';
-import { canAccessMillData, isMillStaff } from '@/lib/auth';
+import { requirePermissions, buildPermissionWhere } from '@/lib/permissions-middleware';
+import { Permission, isMillStaff, Role } from '@/lib/rbac';
 
 /**
  * GET /api/maintenance/tasks
@@ -28,7 +28,8 @@ import { canAccessMillData, isMillStaff } from '@/lib/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.MAINTENANCE_VIEW, 'maintenance tasks');
 
     // Get pagination and sorting params
     const { skip, take } = getPaginationParams(request);
@@ -41,35 +42,31 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority');
     const type = searchParams.get('type');
 
-    // Build where clause
-    const where: any = {};
+    // Build base where clause
+    const baseWhere: any = {};
 
-    // Role-based filtering
-    if (isMillStaff(session.user.role)) {
-      // Mill staff can only see tasks from their mill
-      if (!session.user.millId) {
-        return errorResponse('User is not assigned to a mill', 403);
-      }
-      where.millId = session.user.millId;
-    } else if (millId) {
-      // FWGA staff and admins can filter by mill
-      where.millId = millId;
+    // Optional mill filter (for FWGA staff viewing specific mills)
+    if (millId) {
+      baseWhere.millId = millId;
     }
 
     // Status filter
     if (status) {
-      where.status = status;
+      baseWhere.status = status;
     }
 
     // Priority filter
     if (priority) {
-      where.priority = priority;
+      baseWhere.priority = priority;
     }
 
     // Type filter
     if (type) {
-      where.type = type;
+      baseWhere.type = type;
     }
+
+    // Apply permission-based filtering (tenant/mill isolation)
+    const where = buildPermissionWhere(session, baseWhere);
 
     // Get maintenance tasks with related data
     const [tasks, total] = await Promise.all([
@@ -126,12 +123,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
-
-    // Only mill staff can create tasks
-    if (!isMillStaff(session.user.role) && session.user.role !== 'SYSTEM_ADMIN') {
-      return errorResponse('Only mill staff can create maintenance tasks', 403);
-    }
+    // Check permission and get session
+    const session = await requirePermissions(Permission.MAINTENANCE_CREATE, 'maintenance tasks');
 
     const body = await request.json();
 
@@ -159,9 +152,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('Equipment not found', 404);
     }
 
-    // Check access permissions
-    if (isMillStaff(session.user.role) && session.user.millId !== equipment.millId) {
-      return errorResponse('You can only create tasks for your mill', 403);
+    // Check mill access for mill staff (FWGA can create for any mill)
+    if (isMillStaff(session.user.role)) {
+      if (session.user.millId !== equipment.millId) {
+        return errorResponse('You can only create tasks for your mill', 403);
+      }
     }
 
     // Create maintenance task

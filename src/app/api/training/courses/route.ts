@@ -4,10 +4,11 @@ import {
   successResponse,
   errorResponse,
   handleApiError,
-  requireAuth,
   getPaginationParams,
   getSortingParams,
 } from '@/lib/api-helpers';
+import { requirePermissions } from '@/lib/permissions-middleware';
+import { Permission, Role } from '@/lib/rbac';
 
 /**
  * GET /api/training/courses
@@ -26,7 +27,8 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    // Check permission and get session
+    const session = await requirePermissions(Permission.TRAINING_VIEW, 'training courses');
 
     // Get pagination and sorting params
     const { skip, take } = getPaginationParams(request);
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
     const difficulty = searchParams.get('difficulty');
     const isActive = searchParams.get('isActive');
 
-    // Build where clause
+    // Build where clause (training is global, no tenant filtering)
     const where: any = {};
 
     if (category) {
@@ -116,12 +118,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
-
-    // Only system admins can create courses
-    if (session.user.role !== 'SYSTEM_ADMIN') {
-      return errorResponse('Only system administrators can create courses', 403);
-    }
+    // Check permission and get session (only system admins and program managers)
+    const session = await requirePermissions(Permission.TRAINING_CREATE, 'training courses');
 
     const body = await request.json();
 
