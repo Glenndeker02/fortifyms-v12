@@ -61,6 +61,35 @@ Built with Framer Motion for smooth, educational animations
 - Quick access to simulators and animations
 - Responsive design with modern aesthetics
 
+### ✅ 8. Digital Compliance & Standard Checklist Module
+**Backend APIs (9 components):**
+- Compliance scoring calculation with weighted points
+- Automated suggestion engine with rule-based recommendations
+- What-if analysis for scenario modeling
+- Compliance report PDF generation
+- Inspector review and approval system
+- Annotation system for photo markup
+- Red flag detection and alerting
+- Template version control
+- Evidence upload for photos and documents
+
+**Frontend Components (15 components):**
+- Template builder with section editor
+- Drag-and-drop section reordering
+- Checklist item definition forms (all field types)
+- Scoring rules configuration interface
+- Audit form with accordion sections and progress tracking
+- Evidence capture with camera and file upload
+- Real-time compliance scoring with color coding
+- Red flag visual indicators and summary panel
+- What-if analysis interactive tool
+- Compliance report preview and export
+- Inspector review dashboard with queue management
+- Annotation tools for markup (highlight, arrow, callout)
+- Two-way messaging within audit records
+- Mill compliance dashboard with audit history
+- Template management interface
+
 ## 📁 Key Files Created
 
 ```
@@ -102,13 +131,31 @@ Visit [http://localhost:3000](http://localhost:3000)
 
 ## 📚 Routes
 
+### Training & Diagnostics
 - `/training` - Training center with course catalog
 - `/training/animations` - Interactive process animations
 - `/training/simulators` - Calibration and dosing calculators
 - `/diagnostics/analytics` - FWGA analytics dashboard
+
+### Compliance
+- `/compliance/dashboard` - Mill compliance dashboard
+- `/compliance/inspector` - Inspector review dashboard
+- `/compliance/templates/create` - Create compliance template
+- `/compliance/audits/[id]` - Audit form with evidence capture
+
+### APIs
 - `/api/certificates/download/[id]` - Download certificates
 - `/api/certificates/verify` - Verify certificates
 - `/api/diagnostics/analytics` - Analytics API
+- `/api/compliance/templates` - Template CRUD
+- `/api/compliance/audits` - Audit CRUD
+- `/api/compliance/audits/[id]/calculate-score` - Calculate compliance score
+- `/api/compliance/audits/[id]/what-if` - What-if analysis
+- `/api/compliance/audits/[id]/review` - Inspector review
+- `/api/compliance/audits/[id]/report` - Download PDF report
+- `/api/compliance/suggestions` - Get improvement suggestions
+- `/api/compliance/annotations` - Annotation CRUD
+- `/api/compliance/evidence/upload` - Upload evidence files
 
 ---
 
